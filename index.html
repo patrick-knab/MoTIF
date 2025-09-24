@@ -1,0 +1,437 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>MoTIF: Concepts in Motion - Temporal Bottlenecks for Interpretable Video Classification</title>
+    <meta name="description" content="MoTIF: A novel approach to interpretable video classification using temporal bottlenecks." />
+    <style>
+      :root {
+        --bg: #ffffff;
+        --panel: #fafafa;
+        --border: #e0e0e0;
+        --fg: #212121;
+        --muted: #666666;
+        --brand: #5a5a5a;
+        --accent: #8a8a8a;
+        --shadow: 0 2px 8px rgba(0,0,0,0.1);
+      }
+      * { box-sizing: border-box; }
+      html, body { height: 100%; }
+      body {
+        margin: 0;
+        font-family: Arial, Helvetica, sans-serif;
+        background: var(--bg);
+        color: var(--fg);
+        line-height: 1.6;
+        font-size: 15px;
+      }
+      a { color: inherit; text-decoration: underline; text-underline-offset: 2px; }
+      a:hover { opacity: .85; }
+      .container { max-width: 1200px; margin: 0 auto; padding: 0 20px; }
+      .topbar { position: sticky; top: 0; z-index: 40; background: var(--bg); border-bottom: 1px solid var(--border); }
+      .nav { display: flex; align-items: center; justify-content: space-between; padding: 8px 0; }
+      .brand { font-weight: bold; font-size: 16px; }
+      .links { display: flex; gap: 20px; align-items: center; }
+      .links a, .links button { font-size: 13px; color: var(--fg); }
+      .btn { display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; border-radius: 4px; border: 1px solid var(--border); background: var(--panel); }
+      .btn.primary { background: #2f2f2f; color: white; border-color: #2f2f2f; }
+      .btn:hover { background: #3a3a3a; color: white; }
+
+      header.hero { padding: 20px 0; text-align: center; border-bottom: 1px solid var(--border); }
+      header .title { font-size: 26px; margin: 0 0 4px; font-weight: bold; }
+      header .subtitle { font-size: 19px; margin: 0 0 8px; font-weight: normal; color: var(--muted); }
+      header .authors { color: var(--muted); margin: 0 0 8px; font-size: 14px; }
+      header .affiliation { color: var(--muted); margin: 0 0 16px; font-size: 13px; }
+      .cta { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; }
+
+      .panel { background: var(--panel); border: 1px solid var(--border); border-radius: 4px; margin: 16px 0; }
+      .stack { display: grid; gap: 16px; }
+      .grid { display: grid; gap: 16px; grid-template-columns: 1fr 1fr; }
+      @media (max-width: 768px) { .grid { grid-template-columns: 1fr; } }
+
+      .video-gallery { position: relative; overflow: hidden; border-radius: 4px; background: #000; border: 1px solid var(--border); }
+      .video-container { position: relative; width: 100%; aspect-ratio: 16 / 9; }
+      .video-slide { position: absolute; top: 0; left: 0; width: 100%; height: 100%; opacity: 0; transition: opacity 0.5s ease-in-out; }
+      .video-slide.active { opacity: 1; }
+      .video-slide video { width: 100%; height: 100%; object-fit: contain; }
+      .video-controls { position: absolute; bottom: 12px; left: 50%; transform: translateX(-50%); display: flex; gap: 8px; }
+      .video-dot { width: 8px; height: 8px; border-radius: 50%; background: rgba(255,255,255,0.5); cursor: pointer; transition: background 0.3s ease; }
+      .video-dot.active { background: white; }
+      .video-nav { position: absolute; top: 50%; transform: translateY(-50%); background: rgba(0,0,0,0.5); color: white; border: none; padding: 8px 12px; cursor: pointer; border-radius: 4px; }
+      .video-nav.prev { left: 12px; }
+      .video-nav.next { right: 12px; }
+      .video-nav:hover { background: rgba(0,0,0,0.7); }
+      .section { padding: 16px; }
+      .section h2 { margin: 0 0 12px; font-size: 17px; font-weight: bold; }
+      .section h3 { margin: 0 0 8px; font-size: 15px; font-weight: bold; }
+      .section h4 { 
+        margin: 0 0 6px; 
+        font-size: 17px; 
+        font-weight: 600; 
+        color: #111; 
+        line-height: 1.3;
+      }
+      .section p { margin: 0 0 10px; }
+      .card p { 
+        margin: 0 0 12px; 
+        line-height: 1.5; 
+        color: var(--fg);
+      }
+      .card ul { 
+        margin: 0; 
+        padding-left: 20px; 
+        line-height: 1.6;
+      }
+      .card li { 
+        margin-bottom: 6px; 
+        color: var(--fg);
+      }
+      .muted { color: var(--muted); }
+      .cards { display: grid; grid-template-columns: 1fr; gap: 16px; margin: 20px 0; }
+      .cards.side-by-side { grid-template-columns: 1fr 1fr; }
+      .cards.three-column { grid-template-columns: 1fr 1fr 1fr; }
+      .cards.full-width { grid-template-columns: 1fr; }
+      .cards.split { 
+        grid-template-columns: 1fr 1fr; 
+        grid-template-rows: auto auto; 
+        align-items: stretch; 
+      }
+      .cards.split .row2 { grid-column: 1; grid-row: 2; }
+      .cards.split .span-rows { grid-column: 2; grid-row: 1 / span 2; display: flex; flex-direction: column; }
+      .stack-col { display: grid; gap: 16px; }
+      .card { 
+        padding: 20px; 
+        border-radius: 6px; 
+        border: 1px solid var(--border); 
+        background: var(--bg);
+        transition: border-color 0.2s ease;
+      }
+      .card:hover { border-color: #bdbdbd; }
+      .code { background: #f5f5f5; color: #333; padding: 12px; border-radius: 4px; border: 1px solid var(--border); overflow: auto; font-family: "Courier New", monospace; font-size: 12px; }
+      .fig-container { margin: 40px 0 0 0; }
+      img.fig { width: 100%; display: block; border-radius: 4px; border: 1px solid var(--border); }
+      .caption { font-size: 12px; color: var(--muted); margin-top: 6px; text-align: center; }
+      .table { width: 100%; border-collapse: collapse; margin: 12px 0; }
+      .table th, .table td { padding: 8px 12px; text-align: left; border-bottom: 1px solid var(--border); }
+      .table th { background: var(--panel); font-weight: bold; }
+      footer { color: var(--muted); font-size: 12px; padding: 20px 0; text-align: center; border-top: 1px solid var(--border); }
+    </style>
+  </head>
+  <body>
+    <!--
+      Edit the content below for your paper. Replace placeholders with MoTIF details.
+      Video:
+        - Put a file at MoTIF/docs/assets/teaser.mp4, or
+        - Use URL params: ?video=<url>&poster=<url>
+      Buttons:
+        - Replace hrefs for Paper/Code/ArXiv/Demo.
+    -->
+    <div class="topbar">
+      <div class="container nav">
+        <div class="brand">MoTIF</div>
+        <div class="links">
+          <a href="#abstract">Abstract</a>
+          <a href="#method">Method</a>
+          <a href="#results">Results</a>
+          <a href="#bibtex">BibTeX</a>
+        </div>
+      </div>
+    </div>
+
+    <header class="hero container">
+      <h1 class="title">Concepts in Motion: Temporal Bottlenecks for Interpretable Video Classification</h1>
+      <h2 class="subtitle"><strong>MoTIF</strong> - Moving Temporal Interpretable Framework </h2>
+      <p class="authors">Patrick Knab, Sascha Marton, Philipp Schubert, Drago Nilo, Christian Bartelt</p>
+        <p class="affiliation"><a href="https://www.tu-clausthal.de/" target="_blank" rel="noopener">Technical University of Clausthal</a>, Germany • <a href="https://bartelt-lab.github.io/" target="_blank" rel="noopener">CORE Research Group</a> • <a href="https://ramblr.ai/" target="_blank" rel="noopener">Ramblr.ai Research</a>, Germany</p>
+        <div class="cta">
+        <a class="btn primary" href="MoTIF_Arxiv (1).pdf" target="_blank" rel="noopener">Paper</a>
+        <a class="btn" href="https://github.com/patrickknab/motif" target="_blank" rel="noopener">Code</a>
+        <a class="btn" href="#video">Demo</a>
+      </div>
+
+      
+      <div class="fig-container">
+      <img class="fig" src="assets/FIG_1_neu.png" alt="MoTIF Architecture" style="width: 100%; margin: 0;" />
+      <div class="caption">Figure 1: MoTIF architecture showing the modular design with concept extraction, temporal bottlenecks, and interpretable classification.</div>
+      
+    </header>
+
+    <main class="container stack">
+      <section id="video" class="panel section">
+        <div class="video-gallery">
+          <div class="video-container">
+            <!-- Video 1: Concept Visualization -->
+            <div class="video-slide active" data-title="Concept Visualization">
+              <video autoplay muted playsinline preload="metadata" controls>
+                <source src="Videos/hmdb51_bow.mp4" type="video/mp4" />
+                Your browser does not support the video tag.
+              </video>
+            </div>
+            <!-- Video 2: Temporal Bottlenecks -->
+            <div class="video-slide" data-title="Temporal Bottlenecks">
+              <video muted playsinline preload="metadata" controls>
+                <source src="Videos/breakfast_sandwich.mp4" type="video/mp4" />
+                Your browser does not support the video tag.
+              </video>
+            </div>
+            <!-- Video 3: Action Recognition -->
+            <div class="video-slide" data-title="Action Recognition">
+              <video muted playsinline preload="metadata" controls>
+                <source src="Videos/something2_separate.mp4" type="video/mp4" />
+                Your browser does not support the video tag.
+              </video>
+            </div>
+            <!-- Video 4: Temporal Reasoning -->
+            <div class="video-slide" data-title="Temporal Reasoning">
+              <video muted playsinline preload="metadata" controls>
+                <source src="Videos/ucf101_kayak.mp4" type="video/mp4" />
+            Your browser does not support the video tag.
+          </video>
+            </div>
+            
+            <!-- Navigation Controls -->
+            <button class="video-nav prev" onclick="changeVideo(-1)">‹</button>
+            <button class="video-nav next" onclick="changeVideo(1)">›</button>
+            
+            <!-- Dot Indicators -->
+            <div class="video-controls">
+              <div class="video-dot active" onclick="setVideo(0)"></div>
+              <div class="video-dot" onclick="setVideo(1)"></div>
+              <div class="video-dot" onclick="setVideo(2)"></div>
+              <div class="video-dot" onclick="setVideo(3)"></div>
+            </div>
+          </div>
+        </div>
+        <p class="caption" id="videoCaption">Concept Visualization: MoTIF identifies and highlights key temporal concepts in video sequences.</p>
+      </section>
+
+      <section id="abstract" class="panel section">
+        <h2>Abstract</h2>
+        <p>
+            Conceptual models such as Concept Bottleneck Models (CBMs) have driven substantial progress in improving interpretability for image classification by leveraging human-interpretable concepts. However, extending these models from static images to sequences of images, such as video data, introduces a significant challenge due to the temporal dependencies inherent in videos, which are essential for capturing actions and events
+            In this work, we introduce <strong>MoTIF</strong> (Moving Temporal Interpretable Framework), an architectural design inspired by a transformer that adapts the concept bottleneck framework for video classification and handles sequences of arbitrary length. Within the video domain, concepts refer to semantic entities such as objects, attributes, or higher-level components (e.g., "bow," "mount," "shoot") that reoccur across time—forming motifs collectively describing and explaining actions.
+            Our design explicitly enables three complementary perspectives: global concept importance across the entire video, local concept relevance within specific windows, and temporal dependencies of a concept over time. Our results demonstrate that the concept-based modeling paradigm can be effectively transferred to video data, enabling a better understanding of concept contributions in temporal contexts while maintaining competitive performance.
+        </p>
+      </section>
+
+      <section id="method" class="panel section">
+        <h2>Method</h2>
+        <h3>Contributions</h3>
+        <div class="cards split">
+          <div class="card">
+            <h4>CBM Framework for Video</h4>
+            <p>MoTIF supports arbitrary-length inputs and integrates seamlessly with vision–language backbones</p>
+          </div>
+          <div class="card span-rows">
+            <h4>Three Complementary Explanation Modes</h4>
+            <p>MoTIF is the first method to enable:</p>
+            <ul style="margin: 8px 0; padding-left: 16px;">
+              <li><strong>Global concept relevance</strong> via log-sum-exp (LSE) pooling</li>
+              <li><strong>Localized temporal explanations</strong> using windowed concept attributions</li>
+              <li><strong>Attention-based temporal maps</strong> that visualize how a concept channel distributes its focus across time</li>
+            </ul>
+          </div>
+          <div class="card row2">
+            <h4>Per-Channel Temporal Self-Attention</h4>
+            <p>Preserves concept independence within transformer blocks and models temporal dynamics on a per-concept basis</p>
+          </div>
+        </div>
+        <h3>Architecture</h3>
+        <div class="fig-container">
+          <img class="fig" src="assets/VBM.png" alt="MoTIF pipeline overview" />
+          <div class="caption">
+            Videos are embedded with a vision–language backbone and mapped to concept activations via cosine similarity. Per‑channel temporal self‑attention models dynamics independently for each concept, followed by a non‑negative affine transformation and classification. MoTIF enables explanations across three views: global concepts, local concepts, and temporal dependencies. Sample frames from SSv2 with MoTIF (ViT‑L/14).
+          </div>
+        </div>
+        <div class="stack" style="margin-top:12px">
+          <h4>Video and concept embeddings</h4>
+          <p>Frames are embedded with an image–text aligned backbone (e.g., CLIP) into a shared space. For each temporal window we use either a representative frame or a video‑adapted CLIP embedding. Concept activations X (T×C) are obtained as cosine similarities to a bank of human‑interpretable actions and objects. The concept bank is built from natural‑language descriptions; a large language model proposes candidate concepts, and we adopt the resulting set directly.</p>
+          <h4>Per‑channel temporal self‑attention (diagonal)</h4>
+          <p>Standard transformers mix channels in Q/K/V projections, which obscures concept attribution. MoTIF keeps concepts independent using depthwise 1×1 projections so each concept owns its Q, K and V. Attention is computed within a concept across time, yielding a T×T weight map per concept and refined activations.</p>
+          <h4>Per‑concept affine transformation</h4>
+          <p>Refined activations are scaled and shifted by concept‑specific parameters and passed through Softplus to keep activations non‑negative. A lightweight depthwise two‑layer feed‑forward block (GELU, dropout) is applied.</p>
+          <h4>Complexity</h4>
+          <p>Diagonal attention removes channel‑mixing cost (from O(C²T) to O(CT)) but computes a T×T map per concept, giving O(CT²). This trades efficiency for strict concept isolation compared with standard multi‑head attention O(HT²) with H ≪ C.</p>
+        </div>
+      </section>
+
+      <section id="results" class="panel section">
+        <h2>Results</h2>
+        
+        <h3>Performance Comparison</h3>
+        <p>Table below provides a comparison including accuracies from non-interpretable baselines. We compare against TSM, No Frame Left Behind, and VideoMAE V2, all of which report results on our selected datasets. As expected, these models generally outperform our interpretable variant. However, on Breakfast, we exceeded the performance of two of the baselines that report scores. Importantly, our objective is not to surpass state-of-the-art benchmarks, but to demonstrate a novel MoTIF framework for video data that provides unique interpretability insights.</p>
+        
+        <table class="table">
+          <thead>
+            <tr>
+              <th>Method</th>
+              <th>Breakfast</th>
+              <th>HMDB51</th>
+              <th>UCF101</th>
+              <th>SSv2</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr><td colspan="5"><strong>Zero-shot</strong></td></tr>
+            <tr><td>CLIP-RN/50</td><td>18.6 ± 2.6</td><td>29.8 ± 0.5</td><td>57.2 ± 0.9</td><td>0.8</td></tr>
+            <tr><td>CLIP-ViT-B/32</td><td>23.2 ± 2.9</td><td>38.1 ± 0.3</td><td>59.9 ± 0.4</td><td>0.9</td></tr>
+            <tr><td>CLIP-ViT-L/14</td><td>31.1 ± 4.7</td><td>45.7 ± 0.1</td><td>70.6 ± 0.5</td><td>0.7</td></tr>
+            <tr><td>SigLIP-L/14</td><td>23.6 ± 5.0</td><td>49.3 ± 0.8</td><td>80.4 ± 1.4</td><td>1.3</td></tr>
+            <tr><td>PE-L/14</td><td>41.4 ± 7.0</td><td>56.7 ± 0.6</td><td>74.6 ± 0.9</td><td>2.2</td></tr>
+            
+            <tr><td colspan="5"><strong>Linear Probe</strong></td></tr>
+            <tr><td>CLIP-RN/50</td><td>36.5 ± 9.0</td><td>59.3 ± 0.8</td><td>80.0 ± 0.7</td><td>13.7</td></tr>
+            <tr><td>CLIP-ViT-B/32</td><td>37.2 ± 9.1</td><td>61.6 ± 1.6</td><td>82.8 ± 0.7</td><td>15.2</td></tr>
+            <tr><td>CLIP-ViT-L/14</td><td>55.3 ± 10.2</td><td>68.4 ± 0.5</td><td>90.0 ± 1.1</td><td>18.1</td></tr>
+            <tr><td>SigLIP-L/14</td><td>57.1 ± 10.9</td><td>65.0 ± 2.1</td><td>90.5 ± 0.5</td><td>19.6</td></tr>
+            <tr><td>PE-L/14</td><td>72.9 ± 10.3</td><td>74.4 ± 0.6</td><td>94.5 ± 0.6</td><td>25.5</td></tr>
+            
+            <tr><td colspan="5"><strong>MoTIF (Ours)</strong></td></tr>
+            <tr><td>MoTIF (RN/50)</td><td>52.8 ± 6.9</td><td>62.8 ± 1.1</td><td>82.8 ± 0.6</td><td>16.0</td></tr>
+            <tr><td>MoTIF (ViT-B/32)</td><td>53.4 ± 6.9</td><td>65.3 ± 1.8</td><td>85.6 ± 1.2</td><td>17.5</td></tr>
+            <tr><td>MoTIF (ViT-L/14)</td><td>69.3 ± 6.2</td><td>73.3 ± 1.0</td><td>93.2 ± 0.7</td><td>20.4</td></tr>
+            <tr><td>MoTIF (SigLIP-L/14)</td><td><u>73.5</u> ± 8.6</td><td>73.2 ± 2.4</td><td>94.0 ± 0.8</td><td>22.4</td></tr>
+            <tr><td>MoTIF (PE-L/14)</td><td><strong>83.6</strong> ± 6.5</td><td><u>79.6</u> ± 0.3</td><td>95.4 ± 0.7</td><td>30.0</td></tr>
+            
+            <tr><td colspan="5"><strong>Existing Video Models</strong></td></tr>
+            <tr><td>TSM</td><td>59.1¹</td><td>73.5</td><td>95.9</td><td>61.7</td></tr>
+            <tr><td>No frame left behind</td><td>62.0¹</td><td>73.4¹</td><td><u>96.4¹</u></td><td><u>62.7¹</u></td></tr>
+            <tr><td>VideoMAE V2</td><td>--</td><td><strong>88.1</strong></td><td><strong>99.6</strong></td><td><strong>76.8</strong></td></tr>
+          </tbody>
+        </table>
+        <p class="muted"><small>¹ Results from literature. Bold indicates best performance, underlined indicates second best.</small></p>
+      </section>
+
+      <section id="bibtex" class="panel section">
+        <h2>Citation</h2>
+        <pre class="code">
+            Tbd. 
+        </pre>
+      </section>
+    </main>
+
+    <footer class="container">
+      <div>© <span id="year"></span> Patrick Knab et al. — MoTIF Project</div>
+    </footer>
+
+    <script>
+      // Year
+      document.getElementById('year').textContent = new Date().getFullYear();
+
+      // Video Gallery Functionality
+      let currentVideoIndex = 0;
+      const videos = [
+        {
+          title: "Concept Visualization",
+          description: "MoTIF identifies and highlights key temporal concepts in video sequences, showing how different concepts contribute to classification decisions."
+        },
+        {
+          title: "Temporal Bottlenecks", 
+          description: "Demonstration of temporal bottlenecks capturing the most relevant temporal patterns for video understanding tasks."
+        },
+        {
+          title: "Action Recognition",
+          description: "MoTIF's performance on action recognition tasks, showing interpretable concept-based reasoning for complex actions."
+        },
+        {
+          title: "Temporal Reasoning",
+          description: "Temporal reasoning capabilities of MoTIF, demonstrating understanding of temporal dependencies and sequences."
+        }
+      ];
+
+      function changeVideo(direction) {
+        const slides = document.querySelectorAll('.video-slide');
+        const dots = document.querySelectorAll('.video-dot');
+        const caption = document.getElementById('videoCaption');
+        
+        // Pause current video
+        const currentVideo = slides[currentVideoIndex].querySelector('video');
+        if (currentVideo) currentVideo.pause();
+        
+        // Remove active class
+        slides[currentVideoIndex].classList.remove('active');
+        dots[currentVideoIndex].classList.remove('active');
+        
+        // Calculate new index
+        currentVideoIndex += direction;
+        if (currentVideoIndex >= slides.length) currentVideoIndex = 0;
+        if (currentVideoIndex < 0) currentVideoIndex = slides.length - 1;
+        
+        // Add active class
+        slides[currentVideoIndex].classList.add('active');
+        dots[currentVideoIndex].classList.add('active');
+        
+        // Update caption
+        caption.textContent = videos[currentVideoIndex].description;
+        
+        // Play new video
+        const newVideo = slides[currentVideoIndex].querySelector('video');
+        if (newVideo) {
+          newVideo.currentTime = 0;
+          newVideo.play().catch(() => {}); // Ignore autoplay errors
+        }
+      }
+
+      function setVideo(index) {
+        const slides = document.querySelectorAll('.video-slide');
+        const dots = document.querySelectorAll('.video-dot');
+        const caption = document.getElementById('videoCaption');
+        
+        // Pause current video
+        const currentVideo = slides[currentVideoIndex].querySelector('video');
+        if (currentVideo) currentVideo.pause();
+        
+        // Remove active class
+        slides[currentVideoIndex].classList.remove('active');
+        dots[currentVideoIndex].classList.remove('active');
+        
+        // Set new index
+        currentVideoIndex = index;
+        
+        // Add active class
+        slides[currentVideoIndex].classList.add('active');
+        dots[currentVideoIndex].classList.add('active');
+        
+        // Update caption
+        caption.textContent = videos[currentVideoIndex].description;
+        
+        // Play new video
+        const newVideo = slides[currentVideoIndex].querySelector('video');
+        if (newVideo) {
+          newVideo.currentTime = 0;
+          newVideo.play().catch(() => {}); // Ignore autoplay errors
+        }
+      }
+
+      // Touch/swipe support for mobile
+      let startX = 0;
+      let endX = 0;
+      const videoContainer = document.querySelector('.video-container');
+      
+      videoContainer.addEventListener('touchstart', (e) => {
+        startX = e.touches[0].clientX;
+      });
+      
+      videoContainer.addEventListener('touchend', (e) => {
+        endX = e.changedTouches[0].clientX;
+        const diff = startX - endX;
+        
+        if (Math.abs(diff) > 50) { // Minimum swipe distance
+          if (diff > 0) {
+            changeVideo(1); // Swipe left - next video
+          } else {
+            changeVideo(-1); // Swipe right - previous video
+          }
+        }
+      });
+
+      // Keyboard navigation
+      document.addEventListener('keydown', (e) => {
+        if (e.key === 'ArrowLeft') changeVideo(-1);
+        if (e.key === 'ArrowRight') changeVideo(1);
+      });
+    </script>
+  </body>
+  </html>
+

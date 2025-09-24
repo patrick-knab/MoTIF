@@ -1,0 +1,131 @@
+# MoTIF — Concepts in Motion
+
+Temporal Bottlenecks for Interpretable Video Classification
+
+MoTIF is a simple, modular framework that turns video understanding into an interpretable, concept‑based pipeline. Videos are embedded with a vision–language backbone (e.g., CLIP), mapped to human‑readable concept activations, and processed with per‑channel temporal self‑attention ("diagonal attention"). The result is a classifier that not only predicts actions, but also explains them through global concepts, local (window) concepts, and temporal dependency maps.
+
+---
+
+## Key Features
+
+- **Concept Bottlenecks for Video**: map frames/clips to a shared image–text space and obtain concept activations by cosine similarity.
+- **Per‑Channel Temporal Self‑Attention**: concept channels stay independent; attention happens over time within each concept.
+- **Three Explanation Views**: global concept relevance, local window concepts, and attention‑based temporal maps.
+- **Plug‑and‑Play Backbones**: designed to work with CLIP and related vision–language models.
+- **Multiple Datasets**: examples provided for UCF‑101, HMDB‑51, Something‑Something v2, and Breakfast Actions.
+
+---
+
+## Getting Started
+
+### 1) Environment
+
+- Python 3.10+ (tested with 3.13.5)
+- CUDA‑enabled GPU recommended (checkpoints and scripts assume a GPU environment)
+
+Create and activate an environment, then install requirements:
+
+```bash
+pip install -r requirements.txt
+```
+
+### 2) Data
+
+Place your datasets under `Datasets/` (see the folder structure below). If you want to generate small demo clips or frames, you can use:
+
+```bash
+python save_videos.py
+```
+
+### 3) Create Embeddings
+
+Compute (or recompute) the video/frame embeddings used by MoTIF:
+
+```bash
+python embedding.py
+```
+
+
+### 4) Train MoTIF
+
+MoTIF’s training entry point is:
+
+```bash
+python train_MoTIF.py
+```
+
+Adjust hyperparameters in the script or via CLI flags (if exposed).
+
+### 5) Explore and Visualize
+
+- Open `MoTIF.ipynb` to visualize concept activations, attention over time, and example predictions.
+- Place model checkpoints in `Models/` (see the notebook and code comments for expected paths).
+
+---
+
+## Pretrained Checkpoints
+
+Pretrained MoTIF checkpoints will be uploaded soon. We will publish them under the repository “Releases” page and mirror links here. In the meantime, you can train your own models following the steps above and save checkpoints in `Models/`.
+
+---
+
+## Backbones and Datasets
+
+### Vision–Language Backbones
+- CLIP ViT‑B/32 — [Hugging Face: openai/clip‑vit‑base‑patch32](https://huggingface.co/openai/clip-vit-base-patch32)
+- CLIP ViT‑B/16 — [Hugging Face: openai/clip‑vit‑base‑patch16](https://huggingface.co/openai/clip-vit-base-patch16)
+- CLIP ViT‑L/14 — [Hugging Face: openai/clip‑vit‑large‑patch14](https://huggingface.co/openai/clip-vit-large-patch14)
+- (Optional) SigLIP L/14 — [Hugging Face: google/siglip‑so400m‑patch14‑384](https://huggingface.co/google/siglip-so400m-patch14-384)
+- Perception Encoder (PE‑L/14) — [Official Repo on GitHub](https://github.com/facebookresearch/perception_models)
+
+### Datasets
+- UCF‑101 — [Project page](https://www.crcv.ucf.edu/data/UCF101.php)
+- HMDB‑51 — [Project page](https://serre-lab.clps.brown.edu/resource/hmdb-a-large-human-motion-database/)
+- Something‑Something v2 — [20BN dataset page](https://www.qualcomm.com/developer/software/something-something-v-2-dataset)
+- Breakfast Actions — [Dataset page](https://serre-lab.clps.brown.edu/resource/breakfast-actions-dataset/)
+
+Please follow each dataset’s license and terms of use.
+
+---
+
+## Folder Structure
+
+- `Datasets/` — dataset placeholders
+- `Embeddings/` — generated embeddings (created by scripts)
+- `Models/` — trained model checkpoints
+- `Videos/` — example videos used in the paper/one‑pager
+- `utils/` — library code (vision encoder, projector, dataloaders, transforms, etc.)
+- `index.html` — minimal one‑pager describing MoTIF (open locally in a browser)
+- `embedding.py`, `save_videos.py`, `train_MoTIF.py` — main scripts
+- `MoTIF.ipynb` — notebook for inspection and visualization
+
+---
+
+## Quick Tips
+
+- If you change the dataset or backbone, regenerate embeddings before training.
+- The attention visualizations are concept‑wise and time‑wise; they should not mix information across concepts.
+- GPU memory usage depends on the number of concepts and the temporal window length.
+
+---
+
+## Citation
+
+If you use MoTIF in your research, please consider citing:
+
+```bibtex
+@article{tbd}
+```
+
+---
+
+## Acknowledgements
+
+- Parts of the `utils/core` codebase are adapted from the Perception Encoder framework.
+- Thanks to the CORE research group at TU Clausthal and Ramblr.ai Research for support.
+
+---
+
+## Contact
+
+For questions and discussion, please open an issue or contact the authors.
