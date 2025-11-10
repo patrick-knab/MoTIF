@@ -469,7 +469,7 @@ class FullAttentionTemporalBlock(nn.Module):
 
 class MoTIF:
     """
-    MoTIF with DataLoader support (pinned memory + non_blocking transfers + optional AMP).
+    MoTIF model for video classification using concept bottleneck models.
     Assumes:
       - concepts_over_time_cosine returns signed cosine sims (no clamp).
       - self.model(window_embeddings, key_padding_mask) returns (logits, concepts, concepts_t, sharpness)

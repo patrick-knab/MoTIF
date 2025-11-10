@@ -67,7 +67,9 @@ Adjust hyperparameters in the script or via CLI flags (if exposed).
 
 ## Pretrained Checkpoints
 
-Pretrained MoTIF checkpoints will be uploaded soon. We will publish them under the repository “Releases” page and mirror links here. In the meantime, you can train your own models following the steps above and save checkpoints in `Models/`.
+Pre-trained MoTIF checkpoints for all model variants are available on [Hugging Face](https://huggingface.co/P4ddyki/MoTIF/tree/main). The checkpoints include models trained on Breakfast, HMDB-51, and UCF-101 datasets with PE-L/14 backbone. We will upload soon additional checkpoints.
+
+To use a pre-trained checkpoint, download it from the Hugging Face repository and place it in the `Models/` directory. The notebook `MoTIF.ipynb` will automatically load the appropriate checkpoint based on the dataset and backbone you specify.
 
 ---
 

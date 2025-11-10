@@ -17,6 +17,7 @@
         --shadow: 0 2px 8px rgba(0,0,0,0.1);
       }
       * { box-sizing: border-box; }
+      html { scroll-behavior: smooth; }
       html, body { height: 100%; }
       body {
         margin: 0;
@@ -63,6 +64,8 @@
       .video-nav.next { right: 12px; }
       .video-nav:hover { background: rgba(0,0,0,0.7); }
       .section { padding: 16px; }
+      /* Offset anchors for sticky header so sections aren't hidden */
+      .panel.section { scroll-margin-top: 72px; }
       .section h2 { margin: 0 0 12px; font-size: 17px; font-weight: bold; }
       .section h3 { margin: 0 0 8px; font-size: 15px; font-weight: bold; }
       .section h4 { 
@@ -116,6 +119,22 @@
       .table th, .table td { padding: 8px 12px; text-align: left; border-bottom: 1px solid var(--border); }
       .table th { background: var(--panel); font-weight: bold; }
       footer { color: var(--muted); font-size: 12px; padding: 20px 0; text-align: center; border-top: 1px solid var(--border); }
+
+      /* Responsive adjustments */
+      @media (max-width: 900px) {
+        .container { padding: 0 12px; }
+        header .title { font-size: 22px; }
+        header .subtitle { font-size: 17px; }
+        .links { flex-wrap: wrap; gap: 10px; }
+        .cards.side-by-side, .cards.three-column { grid-template-columns: 1fr; }
+        .cards.split { grid-template-columns: 1fr; grid-template-rows: auto; }
+        .cards.split .span-rows, .cards.split .row2 { grid-column: 1; grid-row: auto; }
+        .section h2 { font-size: 16px; }
+        .section h3 { font-size: 14px; }
+        .section h4 { font-size: 16px; }
+        .table { display: block; overflow-x: auto; white-space: nowrap; font-size: 14px; }
+        .table th, .table td { padding: 6px 8px; }
+      }
     </style>
   </head>
   <body>
@@ -147,6 +166,7 @@
         <div class="cta">
         <a class="btn primary" href="https://arxiv.org/abs/2509.20899" target="_blank" rel="noopener">Paper</a>
         <a class="btn" href="https://github.com/patrick-knab/MoTIF" target="_blank" rel="noopener">Code</a>
+        <a class="btn" href="https://huggingface.co/P4ddyki/MoTIF/tree/main" target="_blank" rel="noopener">Checkpoints</a>
         <a class="btn" href="#video">Demo</a>
       </div>
 
@@ -301,6 +321,7 @@
           </tbody>
         </table>
         <p class="muted"><small>¹ Results from literature. Bold indicates best performance, underlined indicates second best.</small></p>
+        <p style="margin-top: 16px;">Pre-trained checkpoints for all MoTIF models are available at <a href="https://huggingface.co/P4ddyki/MoTIF/tree/main" target="_blank" rel="noopener">Hugging Face</a>.</p>
       </section>
 
       <section id="bibtex" class="panel section">
