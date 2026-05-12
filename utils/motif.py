@@ -32,6 +32,8 @@ import wandb
 import re
 import pandas as pd
 import glob
+import time
+import resource
 
 def init_repro(seed: int = 42, deterministic: bool = True):
     """Call this at the very top of your notebook/script BEFORE creating any model/processor/device context."""
@@ -243,7 +245,7 @@ class PositionalEncoding(nn.Module):
 class DiagQKVd(nn.Module):
     """Per-channel Q/K/V with width d (no cross-concept mixing)."""
 
-    def __init__(self, C: int, d: int = 8, bias: bool = True):
+    def __init__(self, C: int, d: int = 1, bias: bool = True):
         super().__init__()
         self.C, self.d = C, d
         # groups=C keeps channels isolated; each channel gets d features
@@ -259,13 +261,33 @@ class DiagQKVd(nn.Module):
         V = self.v(xc).transpose(1, 2).view(B, T, C, self.d)
         return Q, K, V
 
+
+class RelPosBiasPerChannel(nn.Module):
+    """Relative temporal bias kept for backwards-compatible model pickles."""
+
+    def __init__(self, T_max: int):
+        super().__init__()
+        self.T_max = T_max
+        self.bias = nn.Parameter(torch.zeros(2 * T_max - 1))
+
+    def forward(self, T: int, device=None):
+        i = torch.arange(T, device=device)
+        rel = (i[:, None] - i[None, :]).clamp(-self.T_max + 1, self.T_max - 1)
+        rel = rel + (self.T_max - 1)
+        return self.bias[rel]
+
+
 class ChannelTimeNorm(nn.Module):
     def __init__(self, C, eps=1e-5, affine=True):
         super().__init__()
         self.ln = nn.LayerNorm(C, eps=eps, elementwise_affine=affine)
 
     def forward(self, x):  # x: [B,T,C]
-        return self.ln(x)
+        if hasattr(self, "ln"):
+            return self.ln(x)
+        if hasattr(self, "inorm"):
+            return self.inorm(x.transpose(1, 2)).transpose(1, 2)
+        raise AttributeError("ChannelTimeNorm has neither ln nor inorm.")
 
 
 class PerChannelFFN(nn.Module):
@@ -315,6 +337,8 @@ class PerChannelTemporalBlock(nn.Module):
         x: torch.Tensor,
         attn_mask: Optional[torch.Tensor] = None,
         key_padding_mask: Optional[torch.Tensor] = None,
+        attn_channel_ids: Optional[Union[List[int], torch.Tensor]] = None,
+        attn_mode: Optional[str] = None,
     ) -> torch.Tensor:
         B, T, C = x.shape
 
@@ -326,6 +350,14 @@ class PerChannelTemporalBlock(nn.Module):
 
         # Attention logits per channel: [B, C, T, T]
         scores = torch.einsum("btcd,bucd->bctu", Q, K) * self.scale
+
+        if hasattr(self, "logit_scale"):
+            scale = self.logit_scale.clamp(-5, 5).exp().view(1, C, 1, 1)
+            scores = scores * scale
+
+        if hasattr(self, "rel_bias"):
+            rb = self.rel_bias(T, device=x.device)
+            scores = scores + rb.view(1, 1, T, T)
 
         # Optional masks
         if attn_mask is not None:
@@ -343,6 +375,53 @@ class PerChannelTemporalBlock(nn.Module):
 
         # Softmax over source time axis
         w = torch.softmax(scores, dim=-1)  # [B, C, T, T]
+
+        # Optional attention interventions on selected concept channels.
+        if attn_channel_ids is not None and attn_mode is not None:
+            if not torch.is_tensor(attn_channel_ids):
+                attn_channel_ids = torch.as_tensor(attn_channel_ids, device=w.device)
+            else:
+                attn_channel_ids = attn_channel_ids.to(device=w.device)
+
+            if attn_channel_ids.numel() > 0:
+                if attn_mode == "identity":
+                    base = torch.eye(T, device=w.device, dtype=w.dtype).view(1, 1, T, T)
+                    base = base.expand(B, attn_channel_ids.numel(), T, T).clone()
+                elif attn_mode == "uniform":
+                    base = torch.ones(
+                        B, attn_channel_ids.numel(), T, T, device=w.device, dtype=w.dtype
+                    )
+                    if key_padding_mask is not None:
+                        valid_sources = (~key_padding_mask).to(dtype=w.dtype).view(B, 1, 1, T)
+                        base = base * valid_sources
+                    base = base / base.sum(dim=-1, keepdim=True).clamp(min=1e-8)
+                elif attn_mode in {"reverse", "shuffle"}:
+                    base = w[:, attn_channel_ids].clone()
+                    for b in range(B):
+                        if key_padding_mask is not None:
+                            valid_idx = (~key_padding_mask[b]).nonzero(as_tuple=False).flatten()
+                        else:
+                            valid_idx = torch.arange(T, device=w.device)
+
+                        if valid_idx.numel() == 0:
+                            base[b].zero_()
+                            continue
+
+                        if attn_mode == "reverse":
+                            permuted_idx = torch.flip(valid_idx, dims=[0])
+                        else:
+                            permuted_idx = valid_idx[torch.randperm(valid_idx.numel(), device=w.device)]
+
+                        if valid_idx.numel() < T:
+                            base[b].zero_()
+                            base[b][:, :, valid_idx] = w[b, attn_channel_ids][:, :, permuted_idx]
+                        else:
+                            base[b] = w[b, attn_channel_ids][:, :, permuted_idx]
+                else:
+                    raise ValueError("attn_mode must be 'identity', 'uniform', 'reverse', or 'shuffle'")
+
+                w[:, attn_channel_ids] = base
+
         self.attn_weights = w.detach()
 
         # Weighted sum of values, then reduce d
@@ -469,7 +548,7 @@ class FullAttentionTemporalBlock(nn.Module):
 
 class MoTIF:
     """
-    MoTIF model for video classification using concept bottleneck models.
+    MoTIF with DataLoader support (pinned memory + non_blocking transfers + optional AMP).
     Assumes:
       - concepts_over_time_cosine returns signed cosine sims (no clamp).
       - self.model(window_embeddings, key_padding_mask) returns (logits, concepts, concepts_t, sharpness)
@@ -930,7 +1009,13 @@ class MoTIF:
         random_seed: int = 42,
         ckpt_path: Optional[str] = None,
         early_stopping_patience: int = 50,
-    ):
+        label_smoothing: float = 0.1,
+        warmup_steps: int = 0,
+        ):
+        try:
+            import psutil
+        except Exception:
+            psutil = None
 
         if wandb_run is not None:
             wandb_run.config.update(
@@ -947,20 +1032,30 @@ class MoTIF:
                     "lse_tau": self.model.lse_tau,
                     "diagonal_attention": self.model.diagonal_attention,
                     "early_stopping_patience": early_stopping_patience,
+                    "label_smoothing": label_smoothing,
+                    "warmup_steps": warmup_steps,
                 }
-            )
+            , allow_val_change=True)
 
         # move model to device
         self.model.to(self.device)
         optimizer = torch.optim.AdamW(
             self.model.parameters(), lr=lr, weight_decay=weight_decay
         )
+        scheduler = None
+        if warmup_steps and warmup_steps > 0:
+            def lr_lambda(step):
+                if step < warmup_steps:
+                    return float(step + 1) / float(warmup_steps)
+                return 1.0
+            scheduler = torch.optim.lr_scheduler.LambdaLR(optimizer, lr_lambda)
+
         if class_weights:
             criterion = nn.CrossEntropyLoss(
-                weight=self.class_weights.to(self.device), label_smoothing=0.1
+                weight=self.class_weights.to(self.device), label_smoothing=label_smoothing
             )
         else:
-            criterion = nn.CrossEntropyLoss(label_smoothing=0.1)
+            criterion = nn.CrossEntropyLoss(label_smoothing=label_smoothing)
 
         num_train = len(self.X_train)
 
@@ -971,6 +1066,12 @@ class MoTIF:
         use_early_stopping = (early_stopping_patience is not None) and (
             len(self.X_test) > 0
         )
+
+        gpu_enabled = torch.cuda.is_available() and "cuda" in str(self.device)
+        if gpu_enabled:
+            dev = torch.device(self.device)
+
+        global_step = 0
 
         for epoch in range(num_epochs):
             self.model.train()
@@ -983,7 +1084,17 @@ class MoTIF:
             perm_tensor = torch.randperm(num_train, generator=g)
             perm = perm_tensor.tolist()
 
+            # reset peak GPU memory counters for this epoch
+            if gpu_enabled:
+                torch.cuda.reset_peak_memory_stats(dev)
+                torch.cuda.synchronize(dev)
+
+            epoch_batch_time_sum = 0.0
+            epoch_examples_processed = 0
+            epoch_start = time.perf_counter()
+
             for start in range(0, num_train, batch_size):
+                batch_start = time.perf_counter()
                 end = min(start + batch_size, num_train)
                 idx = perm[start:end]
                 batch_seqs = [self.X_train[i] for i in idx]
@@ -996,6 +1107,8 @@ class MoTIF:
                 inputs, pad_mask = pad_batch_sequences(batch_seqs, device=self.device)
                 optimizer.zero_grad()
 
+                if gpu_enabled:
+                    torch.cuda.synchronize(dev)
                 # updated forward: now returns sharpness
                 logits, concepts_, concepts_t, sharpness = self.model(
                     inputs, key_padding_mask=pad_mask
@@ -1010,7 +1123,11 @@ class MoTIF:
                 l1 = l1_lambda * self.model.classifier.weight.abs().sum()
                 loss = ce + l1 + lambda_sparse * last_L_sparse
                 loss.backward()
+                torch.nn.utils.clip_grad_norm_(self.model.parameters(), 1.0)
                 optimizer.step()
+                if scheduler is not None:
+                    scheduler.step()
+                global_step += 1
                 last_loss = loss
 
                 # accumulate for epoch-average L_sparse
@@ -1024,12 +1141,47 @@ class MoTIF:
                 preds = logits.argmax(dim=1)
                 correct += int((preds == batch_labels).sum().item())
                 total += batch_labels.shape[0]
+                epoch_examples_processed += batch_labels.shape[0]
+
+                if gpu_enabled:
+                    torch.cuda.synchronize(dev)
+                batch_end = time.perf_counter()
+                epoch_batch_time_sum += (batch_end - batch_start)
+
+            epoch_end = time.perf_counter()
+            epoch_time = epoch_end - epoch_start
+            avg_batch_time = (
+                epoch_batch_time_sum / max(1, epoch_batches) if epoch_batches > 0 else 0.0
+            )
+            throughput = epoch_examples_processed / epoch_time if epoch_time > 0 else 0.0
 
             acc = correct / max(1, total)
             epoch_L_sparse = epoch_L_sparse_sum / max(1, epoch_batches)
 
+            # measure GPU peak memory and CPU RSS
+            gpu_peak_mb = None
+            if gpu_enabled:
+                torch.cuda.synchronize(dev)
+                gpu_peak_bytes = torch.cuda.max_memory_allocated(dev)
+                gpu_peak_mb = float(gpu_peak_bytes) / (1024.0 ** 2)
+
+            # CPU RSS via psutil if available, otherwise fallback to resource
+            cpu_rss_mb = None
+            try:
+                if psutil is not None:
+                    p = psutil.Process()
+                    cpu_rss_mb = float(p.memory_info().rss) / (1024.0 ** 2)
+                else:
+                    # ru_maxrss is in kilobytes on Linux, bytes on some systems. Convert conservatively.
+                    rss = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
+                    # assume kilobytes (Linux)
+                    cpu_rss_mb = float(rss) / 1024.0
+            except Exception:
+                cpu_rss_mb = None
+
             # ===== evaluation =====
             def evaluate(dataset_X, dataset_y):
+                eval_start = time.perf_counter()
                 self.model.eval()
                 correct, total = 0, 0
                 sharpness_vals = []
@@ -1046,9 +1198,14 @@ class MoTIF:
                             batch_seqs, device=self.device
                         )
 
+                        if gpu_enabled:
+                            torch.cuda.synchronize(dev)
                         logits, _, _, sharpness = self.model(
                             inputs, key_padding_mask=pad_mask
                         )
+                        if gpu_enabled:
+                            torch.cuda.synchronize(dev)
+
                         preds = logits.argmax(dim=1)
                         correct += int((preds == batch_labels).sum().item())
                         total += batch_labels.shape[0]
@@ -1087,6 +1244,8 @@ class MoTIF:
                                 }
                             )
 
+                eval_end = time.perf_counter()
+                eval_time = eval_end - eval_start
                 acc = correct / max(1, total)
                 if sharpness_vals:
                     mean_sharp = {
@@ -1095,15 +1254,15 @@ class MoTIF:
                     }
                 else:
                     mean_sharp = {}
-                return acc, mean_sharp
+                return acc, mean_sharp, eval_time
 
-            test_acc, test_sharp = (
-                (0.0, {})
+            test_acc, test_sharp, test_eval_time = (
+                (0.0, {}, 0.0)
                 if len(self.X_test) == 0
                 else evaluate(self.X_test, self.y_test)
             )
-            val_acc, val_sharp = (
-                (0.0, {}) if self.X_val is None else evaluate(self.X_val, self.y_val)
+            val_acc, val_sharp, val_eval_time = (
+                (0.0, {}, 0.0) if self.X_val is None else evaluate(self.X_val, self.y_val)
             )
 
             metric = test_acc if len(self.X_test) > 0 else acc
@@ -1145,6 +1304,15 @@ class MoTIF:
                     "learning_rate": current_lr,
                     "best_val_acc": best_metric,
                     "epochs_since_improvement": epochs_since_improvement,
+                    # timing + perf
+                    "epoch_time_s": epoch_time,
+                    "avg_batch_time_s": avg_batch_time,
+                    "throughput_samples_per_s": throughput,
+                    "test_eval_time_s": test_eval_time,
+                    "val_eval_time_s": val_eval_time,
+                    # memory
+                    "gpu_peak_memory_mb": gpu_peak_mb,
+                    "cpu_rss_mb": cpu_rss_mb,
                 }
                 # add sharpness metrics
                 for prefix, sharp in [("test_", test_sharp), ("val_", val_sharp)]:
@@ -1164,7 +1332,9 @@ class MoTIF:
                 print(
                     f"Epoch {epoch+1}/{num_epochs} | loss {msg_loss:.4f} | test_acc {test_acc:.4f} "
                     f"| train_acc {acc:.4f} | L_sparse {msg_sparse:.4f} "
-                    f"| best_val {best_metric:.4f} | epochs_no_improve {epochs_since_improvement}"
+                    f"| best_val {best_metric:.4f} | epochs_no_improve {epochs_since_improvement} | "
+                    f"epoch_time {epoch_time:.3f}s | avg_batch {avg_batch_time:.4f}s | thr {throughput:.1f} samples/s | "
+                    f"gpu_peak_mb {gpu_peak_mb if gpu_peak_mb is not None else 'N/A'} | cpu_rss_mb {cpu_rss_mb if cpu_rss_mb is not None else 'N/A'}"
                 )
 
             # early stopping
@@ -1268,6 +1438,9 @@ class CBMTransformer(nn.Module):
         key_padding_mask: Optional[torch.Tensor] = None,
         channel_ids: Optional[Union[List[int], torch.Tensor]] = None,
         window_ids: Optional[Union[List[int], torch.Tensor]] = None,
+        noisy_channel: bool = False,
+        attn_channel_ids: Optional[Union[List[int], torch.Tensor]] = None,
+        attn_mode: Optional[str] = None,
     ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         """
         window_embeddings: [B,T,C] or [T,C]
@@ -1288,7 +1461,19 @@ class CBMTransformer(nn.Module):
         # --- transformer backbone ---
         x = self.posenc(x)  # [B,T,C]
         for layer in self.layers:
-            x = layer(x, key_padding_mask=key_padding_mask)
+            if self.diagonal_attention:
+                x = layer(
+                    x,
+                    key_padding_mask=key_padding_mask,
+                    attn_channel_ids=attn_channel_ids,
+                    attn_mode=attn_mode,
+                )
+            else:
+                if attn_channel_ids is not None or attn_mode is not None:
+                    raise ValueError(
+                        "Per-channel attention interventions require diagonal_attention=True."
+                    )
+                x = layer(x, key_padding_mask=key_padding_mask)
         x = self.norm(x)  # [B,T,C]
 
         # --- concept predictions per time step ---
@@ -1296,11 +1481,20 @@ class CBMTransformer(nn.Module):
 
         # --- concept interventions ---
         if channel_ids is not None and window_ids is not None:
-            concepts_t[:, window_ids, channel_ids] = 0
+            if noisy_channel:
+                concepts_t[:, window_ids, channel_ids] = torch.randn_like(concepts_t[:, window_ids, channel_ids]) * 0.5
+            else:
+                concepts_t[:, window_ids, channel_ids] = 0
         elif channel_ids is not None:
-            concepts_t[:, :, channel_ids] = 0
+            if noisy_channel:
+                concepts_t[:, :, channel_ids] = torch.randn_like(concepts_t[:, :, channel_ids]) * 0.5
+            else:
+                concepts_t[:, :, channel_ids] = 0
         elif window_ids is not None:
-            concepts_t[:, window_ids, :] = 0
+            if noisy_channel:
+                concepts_t[:, window_ids, :] = torch.randn_like(concepts_t[:, window_ids, :])* 0.5
+            else:
+                concepts_t[:, window_ids, :] = 0
 
         logits_t = self.classifier(concepts_t)  # [B,T,K]
 

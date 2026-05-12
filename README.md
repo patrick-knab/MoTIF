@@ -1,145 +1,223 @@
 # MoTIF — Concepts in Motion
 
-[**Read the Paper (arXiv)**](https://arxiv.org/pdf/2509.20899)
+[![Paper](https://img.shields.io/badge/Paper-arXiv-b31b1b.svg)](https://arxiv.org/abs/2509.20899)
+[![Checkpoints](https://img.shields.io/badge/Checkpoints-Hugging%20Face-yellow.svg)](https://huggingface.co/P4ddyki/MoTIF/tree/main)
+
+MoTIF (Moving Temporal Interpretable Framework) extends concept bottleneck modeling from static images to videos. It combines concept activations from vision-language models with temporal modeling to explain video predictions through global concept importance, local concept windows, and temporal dependency maps.
+
+Accepted as a spotlight non-archival paper at the XAI4CV CVPR Workshop 2026.
+
+![MoTIF overview](assets/FIG_1_neu.png)
 
 ## Abstract
 
-Conceptual models such as Concept Bottleneck Models (CBMs) have driven substantial progress in improving interpretability for image classification by leveraging human‑interpretable concepts. However, extending these models from static images to sequences of images, such as video data, introduces a significant challenge due to the temporal dependencies inherent in videos, which are essential for capturing actions and events. In this work, we introduce MoTIF (Moving Temporal Interpretable Framework), an architectural design inspired by a transformer that adapts the concept bottleneck framework for video classification and handles sequences of arbitrary length. Within the video domain, concepts refer to semantic entities such as objects, attributes, or higher‑level components (e.g., "bow", "mount", "shoot") that reoccur across time—forming motifs collectively describing and explaining actions. Our design explicitly enables three complementary perspectives: global concept importance across the entire video, local concept relevance within specific windows, and temporal dependencies of a concept over time. Our results demonstrate that the concept‑based modeling paradigm can be effectively transferred to video data, enabling a better understanding of concept contributions in temporal contexts while maintaining competitive performance. 
+Concept Bottleneck Models (CBMs) enable interpretable image classification by structuring predictions around human-understandable concepts, but extending this paradigm to video remains challenging due to the difficulty of extracting concepts and modeling them over time. In this paper, we introduce MoTIF (Moving Temporal Interpretable Framework), a transformer-based concept architecture that operates on sequences of temporally grounded concept activations, by employing per-concept temporal self-attention to model when individual concepts recur and how their temporal patterns contribute to predictions. Central to the framework is a class-conditioned VLM-based concept discovery module that extracts object- and action-centric textual concepts from training videos, yielding temporally expressive concept sets without manual concept annotation. Across multiple video benchmarks, this combination improves over global concept bottlenecks and remains competitive within the interpretable concept-bottleneck setting, while narrowing the gap to strong black-box video baselines that we report as contextual references.
 
----
+## Highlights
 
-## Key Features
+- Concept bottlenecks for video classification with temporal reasoning over concept activations
+- Two training variants: temporal `MoTIF` and space-time `MoTIF-ST`
+- Three explanation views: global relevance, local windows, and temporal attention maps
+- Support for multiple vision-language backbones, including CLIP, SigLIP, CLIP4Clip, and Perception Encoder variants
+- Optional agentic concept extraction pipeline for VLM-generated concepts and ablations
+- Example workflows for UCF-101, HMDB-51, Something-Something v2, and Breakfast Actions
 
-- **Concept Bottlenecks for Video**: map frames/clips to a shared image–text space and obtain concept activations by cosine similarity.
-- **Per‑Channel Temporal Self‑Attention**: concept channels stay independent; attention happens over time within each concept.
-- **Three Explanation Views**: global concept relevance, local window concepts, and attention‑based temporal maps.
-- **Plug‑and‑Play Backbones**: designed to work with CLIP and related vision–language models.
-- **Multiple Datasets**: examples provided for UCF‑101, HMDB‑51, Something‑Something v2, and Breakfast Actions.
+## Repository Contents
 
----
+- `train_MoTIF.py`: train the temporal MoTIF model
+- `train_MoTIF-ST.py`: train the space-time MoTIF-ST variant
+- `embedding.py`: generate video embeddings used by the models
+- `save_videos.py`: prepare derived `Video_data/` and `Image_data/` folders from raw datasets
+- `MoTIF.ipynb`, `MoTIF-ST.ipynb`: inspect predictions, concepts, and explanations
+- `Synthetic_temporal_pattern.ipynb`: synthetic temporal pattern experiments
+- `interventions.ipynb`, `corrective_interventions_manual.ipynb`, `app_corrective_interventions.py`: intervention and correction workflows
+- `slurm_cbm_extract_windows.sbatch`: example SLURM launcher for VLM-based concept extraction
+- `MoTIF_DCBM_Style/`: DCBM-style concept extraction and ablation utilities
+- `Videos/`: small example videos for qualitative inspection
+- `Datasets/`, `Embeddings/`, `Models/`: placeholder folders for external data and generated artifacts
+- `utils/`: model, embedding, explanation, intervention, and data-loading code
 
-## Getting Started
+## What Is Not Stored in Git
 
-### 1) Environment
+Large artifacts are intentionally not tracked in this repository:
 
-- Python 3.10+ (tested with 3.13.5)
-- CUDA‑enabled GPU recommended (checkpoints and scripts assume a GPU environment)
+- trained checkpoints in `Models/`
+- generated embeddings in `Embeddings/`
+- raw datasets and derived `Video_data/` / `Image_data/` folders under `Datasets/`
+- cache files, bytecode, and other local machine artifacts
 
-Create and activate an environment, then install requirements:
+Pretrained checkpoints are available on [Hugging Face](https://huggingface.co/P4ddyki/MoTIF/tree/main). Embeddings can be regenerated locally with `embedding.py`.
+
+## Setup
+
+MoTIF was run in our experiments with Python 3.13.5 on GPU machines. A CUDA-enabled GPU is strongly recommended, especially for embedding generation and training.
+
+Install the main dependencies:
 
 ```bash
 pip install -r requirements.txt
 ```
 
-### 2) Data
-
-Place your datasets under `Datasets/` (see the folder structure below). If you want to generate small demo clips or frames, you can use:
+For VLM-based concept extraction with vLLM, install the extra dependencies as well:
 
 ```bash
-python save_videos.py
+pip install -r requirements_vllm.txt
 ```
 
-### 3) Create Embeddings
+## Data Layout
 
-Compute (or recompute) the video/frame embeddings used by MoTIF:
+Place the original dataset files under `Datasets/<DatasetName>/Data/`. The preprocessing step then creates the derived `Video_data/` and `Image_data/` folders used by the training and concept extraction code.
+
+Expected layout:
+
+```text
+Datasets/
+  HMDB/
+    Data/
+    testTrainMulti_7030_splits/
+    Video_data/
+    Image_data/
+  UCF101/
+    Data/
+    ucfTrainTestlist/
+    Video_data/
+    Image_data/
+  Something2/
+    Data/
+    labels/
+    Video_data/
+    Image_data/
+  Breakfast/
+    Data/
+    Video_data/
+    Image_data/
+```
+
+Notes:
+
+- `save_videos.py` reads from `Data/` and writes the derived `Video_data/` and `Image_data/` folders.
+- The included HMDB split files under `Datasets/HMDB/testTrainMulti_7030_splits/` are lightweight metadata only.
+- Dataset videos must be obtained from the original dataset providers and used under their respective licenses.
+
+## Quickstart
+
+### 1. Install dependencies
+
+```bash
+pip install -r requirements.txt
+```
+
+### 2. Place raw datasets under `Datasets/<DatasetName>/Data/`
+
+Follow each dataset's official download instructions, then copy or extract the raw files into the matching `Data/` directory.
+
+### 3. Create derived video and frame folders
+
+Example:
+
+```bash
+python save_videos.py --dataset HMDB
+```
+
+The script supports the dataset names used in the codebase and creates the `Video_data/` and `Image_data/` directories expected by training and concept extraction.
+
+### 4. Generate embeddings
 
 ```bash
 python embedding.py
 ```
 
+`embedding.py` currently contains an example configuration near the bottom of the file. Adjust the dataset, backbone, window size, and batching settings there before running large jobs.
 
-### 4) Train MoTIF
-
-MoTIF’s training entry point is:
+### 5. Train the temporal MoTIF model
 
 ```bash
 python train_MoTIF.py
 ```
 
-Adjust hyperparameters in the script or via CLI flags (if exposed).
+### 6. Train the space-time MoTIF-ST model
 
-### 5) Explore and Visualize
+```bash
+python train_MoTIF-ST.py
+```
 
-- Open `MoTIF.ipynb` to visualize concept activations, attention over time, and example predictions.
-- Place model checkpoints in `Models/` (see the notebook and code comments for expected paths).
+### 7. Inspect checkpoints and explanations
 
----
+Open the notebooks to visualize concepts, temporal attention, interventions, and prediction behavior:
+
+- `MoTIF.ipynb`
+- `MoTIF-ST.ipynb`
+- `interventions.ipynb`
+- `corrective_interventions_manual.ipynb`
 
 ## Pretrained Checkpoints
 
-Pre-trained MoTIF checkpoints for all model variants are available on [Hugging Face](https://huggingface.co/P4ddyki/MoTIF/tree/main). The checkpoints include models trained on Breakfast, HMDB-51, and UCF-101 datasets with PE-L/14 backbone. We will upload soon additional checkpoints.
+Pretrained checkpoints are available on [Hugging Face](https://huggingface.co/P4ddyki/MoTIF/tree/main). The repository currently includes released models for several dataset and backbone combinations, including PE-L/14 checkpoints for Breakfast, HMDB-51, and UCF-101.
 
-To use a pre-trained checkpoint, download it from the Hugging Face repository and place it in the `Models/` directory. The notebook `MoTIF.ipynb` will automatically load the appropriate checkpoint based on the dataset and backbone you specify.
+To use a pretrained checkpoint:
 
----
+1. Download the desired file from Hugging Face.
+2. Place it in `Models/`.
+3. Point the notebook or training/evaluation code to the matching checkpoint path.
 
 ## Backbones and Datasets
 
-### Vision–Language Backbones
-- CLIP ViT‑B/32 — [Hugging Face: openai/clip‑vit‑base‑patch32](https://huggingface.co/openai/clip-vit-base-patch32)
-- CLIP ViT‑B/16 — [Hugging Face: openai/clip‑vit‑base‑patch16](https://huggingface.co/openai/clip-vit-base-patch16)
-- CLIP ViT‑L/14 — [Hugging Face: openai/clip‑vit‑large‑patch14](https://huggingface.co/openai/clip-vit-large-patch14)
-- (Optional) SigLIP L/14 — [Hugging Face: google/siglip‑so400m‑patch14‑384](https://huggingface.co/google/siglip-so400m-patch14-384)
-- Perception Encoder (PE‑L/14) — [Official Repo on GitHub](https://github.com/facebookresearch/perception_models)
+### Supported vision-language backbones
 
-### Datasets
-- UCF‑101 — [Project page](https://www.crcv.ucf.edu/data/UCF101.php)
-- HMDB‑51 — [Project page](https://serre-lab.clps.brown.edu/resource/hmdb-a-large-human-motion-database/)
-- Something‑Something v2 — [20BN dataset page](https://www.qualcomm.com/developer/software/something-something-v-2-dataset)
-- Breakfast Actions — [Dataset page](https://serre-lab.clps.brown.edu/resource/breakfast-actions-dataset/)
+- CLIP ViT-B/32
+- CLIP ViT-B/16
+- CLIP ViT-L/14
+- CLIP RN50
+- CLIP4Clip
+- SigLIP
+- SigLIP SO400M L/14
+- Perception Encoder PE-L/14
+- Perception Encoder PE-G/14
 
-Please follow each dataset’s license and terms of use.
+### Example datasets
 
-Note: If you use other datasets, you will need to adapt the dataset logic in the code (e.g., train/val/test splits, preprocessing, and loaders). Relevant places include `utils/core/data/` (e.g., `data.py`, `preprocessor.py`, `dataloader.py`) and any dataset‑specific handling in `embedding.py` and `train_MoTIF.py`.
+- UCF-101
+- HMDB-51
+- Something-Something v2
+- Breakfast Actions
 
----
+Using additional datasets is possible, but typically requires adapting the dataset handling in `utils/core/data/`, `embedding.py`, and the training scripts.
 
-## Folder Structure
+## Agentic Concept Extraction
 
-- `Datasets/` — dataset placeholders
-- `Embeddings/` — generated embeddings (created by scripts)
-- `Models/` — trained model checkpoints
-- `Videos/` — example videos used in the paper/one‑pager
-- `utils/` — library code (vision encoder, projector, dataloaders, transforms, etc.)
-- `index.html` — minimal one‑pager describing MoTIF (open locally in a browser)
-- `embedding.py`, `save_videos.py`, `train_MoTIF.py` — main scripts
-- `MoTIF.ipynb` — notebook for inspection and visualization
+This repository also includes an optional pipeline for extracting concepts from video frames with a vision-language model.
 
----
+Typical workflow:
 
-## Quick Tips
+1. Install the extra dependencies from `requirements_vllm.txt`.
+2. Start a vLLM server with a vision-language model.
+3. Adapt `slurm_cbm_extract_windows.sbatch` to your environment.
+4. Run concept extraction using the utilities in `MoTIF_DCBM_Style/` or `utils/extract_cbm_concepts_from_image_data_windows.py`.
+5. Pass the generated concept directory to `train_MoTIF.py` or `train_MoTIF-ST.py` via the `agent_run_folder` setting when using agentic concepts.
 
-- If you change the dataset or backbone, regenerate embeddings before training.
-- The attention visualizations are concept‑wise and time‑wise; they should not mix information across concepts.
-- GPU memory usage depends on the number of concepts and the temporal window length.
-
----
+The extraction pipeline supports ablation settings such as `json_only`, `json+action`, and `action_only`.
 
 ## Citation
 
-If you use MoTIF in your research, please consider citing:
+If you use MoTIF in your research, please cite:
 
 ```bibtex
 @misc{knab2025conceptsmotiontemporalbottlenecks,
-      title={Concepts in Motion: Temporal Bottlenecks for Interpretable Video Classification}, 
-      author={Patrick Knab and Sascha Marton and Philipp J. Schubert and Drago Guggiana and Christian Bartelt},
-      year={2025},
-      eprint={2509.20899},
-      archivePrefix={arXiv},
-      primaryClass={cs.CV},
-      url={https://arxiv.org/abs/2509.20899}, 
+  title={Concepts in Motion: Temporal Bottlenecks for Interpretable Video Classification},
+  author={Patrick Knab and Sascha Marton and Philipp J. Schubert and Drago Guggiana and Christian Bartelt},
+  year={2025},
+  eprint={2509.20899},
+  archivePrefix={arXiv},
+  primaryClass={cs.CV},
+  url={https://arxiv.org/abs/2509.20899}
 }
 ```
 
----
-
 ## Acknowledgements
 
-- Parts of the `utils/core` codebase are adapted from the Perception Encoder framework.
+- Parts of `utils/core` are adapted from the Perception Encoder framework.
 - Thanks to the CORE research group at TU Clausthal and Ramblr.ai Research for support.
-
----
 
 ## Contact
 
-For questions and discussion, please open an issue or contact the authors.
+For questions, bug reports, or collaboration inquiries, please open a GitHub issue.

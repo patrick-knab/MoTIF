@@ -9,7 +9,7 @@ import random
 import numpy as np
 import torch
 
-from typing import List, Optional, Dict, Tuple
+from typing import List, Optional, Dict, Tuple, Union
 
 import cv2
 from PIL import Image
@@ -37,6 +37,7 @@ def explain_instance(
     target_class: Optional[int] = None,
     window_spans: Optional[List[Tuple[int, int]]] = None,
     fps: Optional[float] = None,
+    is_spacetime: bool = False,  # Set True for space-time transformer models
 ):
     # device + shape
     device = next(model.parameters(), torch.empty(0)).device
@@ -112,11 +113,23 @@ def explain_instance(
             )
 
     # optional per-layer attention if present
-    attn = [getattr(layer, "attn_weights", None) for layer in model.layers]
-    if any(a is not None for a in attn):
+    if is_spacetime and hasattr(model, "get_attention_maps"):
+        # Space-time transformer: returns dict with 'spatial' and 'temporal' keys
+        attn_maps = model.get_attention_maps()  # List of dicts
         res["attn_per_layer"] = [
-            a[0].detach().cpu() if a is not None else None for a in attn
+            {
+                "spatial": attn_dict["spatial"][0].detach().cpu() if attn_dict["spatial"] is not None else None,  # [T, C, C]
+                "temporal": attn_dict["temporal"][0].detach().cpu() if attn_dict["temporal"] is not None else None,  # [C, T, T]
+            }
+            for attn_dict in attn_maps
         ]
+    else:
+        # Standard transformer: single attention matrix per layer
+        attn = [getattr(layer, "attn_weights", None) for layer in model.layers]
+        if any(a is not None for a in attn):
+            res["attn_per_layer"] = [
+                a[0].detach().cpu() if a is not None else None for a in attn
+            ]
 
     return res
 
@@ -506,6 +519,29 @@ def print_temporal_dependencies(
     for a in attn_layers:
         if a is None:
             continue
+        
+        # Handle space-time attention (dict with 'spatial' and 'temporal' keys)
+        if is_spacetime and isinstance(a, dict):
+            if attention_type == "spatial":
+                a = a.get("spatial", None)  # [T, C, C]
+                if a is None:
+                    continue
+                # For spatial, we need to aggregate over time or pick a specific time
+                # For now, we'll aggregate over time dimension (mean)
+                a = a.mean(dim=0)  # [C, C] -> but we need [T, T] for temporal dependencies
+                # Actually, spatial is [T, C, C], so we need to aggregate differently
+                # Let's take mean over both time and concepts to get a [C, C] matrix
+                # But this doesn't match the expected [T, T] format...
+                # For spatial attention visualization, we might want a different approach
+                print("[temporal] Spatial attention not directly compatible with temporal dependencies visualization.")
+                print("[temporal] Use attention_type='temporal' for temporal dependencies.")
+                continue
+            else:  # temporal
+                a = a.get("temporal", None)  # [C, T, T]
+                if a is None:
+                    continue
+                # Temporal attention is already [C, T, T], which matches per-channel format
+        
         # a can be [C,T,T] (per-channel) OR [H,T,T] (full multi-head)
         if not torch.is_tensor(a):
             a = torch.as_tensor(a)
@@ -629,9 +665,12 @@ def plot_attention_heatmaps(
     normalize_rows: bool = True,
     show_seconds: bool = True,
     cmap: str = "magma",
-    figsize: Tuple[int, int] = (5, 4),
+    figsize: Tuple[int, int] = (6, 5),
     savepath: Optional[str] = None,
     title_prefix: str = "Attention",
+    is_spacetime: bool = False,  # Set True for space-time transformer models
+    attention_type: str = "temporal",  # "temporal" or "spatial" for space-time models
+    time_idx: Optional[int] = None,  # For spatial attention, which time step to visualize (None = aggregate)
     ):
     rc = {
         "font.family": "serif",
@@ -648,7 +687,39 @@ def plot_attention_heatmaps(
     for a in attn_layers:
         if a is None:
             continue
-        a = torch.as_tensor(a, dtype=torch.float32)
+        
+        # Handle space-time attention (dict with 'spatial' and 'temporal' keys)
+        if is_spacetime and isinstance(a, dict):
+            if attention_type == "spatial":
+                a = a.get("spatial", None)  # [T, C, C]
+                if a is None:
+                    continue
+                a = torch.as_tensor(a, dtype=torch.float32)
+                # For spatial attention, we have [T, C, C]
+                # If time_idx is specified, select that time step: [C, C]
+                # Otherwise, aggregate over time: [C, C]
+                if time_idx is not None and 0 <= time_idx < a.shape[0]:
+                    a = a[time_idx]  # [C, C]
+                    # Need to add a dummy dimension to match expected format
+                    # But spatial is concept-to-concept, not time-to-time
+                    # We'll reshape to [1, C, C] to match the expected [G, T, T] format
+                    # where G=1 (single "group") and T=C (concepts as "time")
+                    a = a.unsqueeze(0)  # [1, C, C] - treating concepts as "time" dimension
+                else:
+                    # Aggregate over time: mean of [T, C, C] -> [C, C]
+                    a = a.mean(dim=0).unsqueeze(0)  # [1, C, C]
+            else:  # temporal
+                a = a.get("temporal", None)  # [C, T, T]
+                if a is None:
+                    continue
+                a = torch.as_tensor(a, dtype=torch.float32)
+                # Temporal attention is already [C, T, T], which matches expected format
+        
+        if not isinstance(a, torch.Tensor):
+            a = torch.as_tensor(a, dtype=torch.float32)
+        
+        # Ensure correct shape: [G, T, T] where G can be C (concepts) or H (heads)
+        # For spatial when reshaped, we have [1, C, C] which we treat as [1, T, T] where T=C
         assert (
             a.ndim == 3 and a.shape[-1] == a.shape[-2]
         ), f"Expected [G,T,T], got {tuple(a.shape)}"
@@ -665,14 +736,30 @@ def plot_attention_heatmaps(
 
     G, T, _ = mats[0].shape
     second_spans = res.get("second_spans", None)
+    
+    # For spatial attention, T actually represents concepts, not time
+    is_spatial_plot = is_spacetime and attention_type == "spatial"
 
     def agg_g(x: torch.Tensor) -> torch.Tensor:
         if concept_idx is not None:
-            if not (0 <= concept_idx < x.shape[0]):
-                raise IndexError(
-                    f"concept_idx={concept_idx} out of range [0,{x.shape[0]-1}]."
-                )
-            return x[concept_idx]
+            if is_spatial_plot:
+                # For spatial attention, x is [1, C, C] where first dim is dummy
+                # For spatial attention, we show the full [C, C] concept-to-concept matrix
+                # concept_idx is ignored for selection but can be used for labeling/highlighting
+                x_2d = x.squeeze(0)  # [C, C]
+                if not (0 <= concept_idx < x_2d.shape[0]):
+                    raise IndexError(
+                        f"concept_idx={concept_idx} out of range [0,{x_2d.shape[0]-1}] for spatial attention."
+                    )
+                # Return the full matrix - concept_idx can be used for highlighting in the plot
+                return x_2d  # [C, C] - full concept-to-concept attention matrix
+            else:
+                # For temporal attention, x is [C, T, T] or [H, T, T]
+                if not (0 <= concept_idx < x.shape[0]):
+                    raise IndexError(
+                        f"concept_idx={concept_idx} out of range [0,{x.shape[0]-1}]."
+                    )
+                return x[concept_idx]
         return x.max(dim=0).values if head_or_concept_agg == "max" else x.mean(dim=0)
 
     per_layer = [agg_g(L) for L in mats]
@@ -728,8 +815,12 @@ def plot_attention_heatmaps(
                 vmax=float(A.max().item()) or None,
             )
 
-            ax.set_xlabel("Key time u (source/context)", fontsize=16)
-            ax.set_ylabel("Query time t (target/current)", fontsize=16)
+            if is_spatial_plot:
+                ax.set_xlabel("Key concept j (source/context)", fontsize=16)
+                ax.set_ylabel("Query concept i (target/current)", fontsize=16)
+            else:
+                ax.set_xlabel("Key time u (source/context)", fontsize=16)
+                ax.set_ylabel("Query time t (target/current)", fontsize=16)
 
             xt, xl = make_ticks(T)
             yt, yl = make_ticks(T)
@@ -748,22 +839,32 @@ def plot_attention_heatmaps(
             ):
                 cname = concept_names[concept_idx]
             tag_str = f"layer={tag}" if isinstance(tag, (int, str)) else str(tag)
-            if concept_idx is not None:
-                title = f" ({cname})" if cname else ""
+            attn_type_str = f"{attention_type.capitalize()} " if is_spacetime else ""
+            if is_spatial_plot:
+                if concept_idx is not None:
+                    time_str = f" (t={time_idx})" if time_idx is not None else ""
+                    title = f"{attn_type_str}Attention: {cname}{time_str}"
+                else:
+                    time_str = f" (t={time_idx})" if time_idx is not None else " (time avg)"
+                    title = f"{attn_type_str}Attention{time_str}"
             else:
-                title = f" (agg over {'concepts' if G==A.shape[0] else 'heads'})"
-            ax.set_title(title, fontsize=18)
+                if concept_idx is not None:
+                    title = f"{attn_type_str}Attention: {cname}" if cname else f"{attn_type_str}Attention"
+                else:
+                    agg_type = "concepts" if G == A.shape[0] else "heads"
+                    title = f"{attn_type_str}Attention ({agg_type} avg)"
+            ax.set_title(title, fontsize=16, pad=12)
 
             cbar = fig.colorbar(im, ax=ax, fraction=0.046, pad=0.04)
             cbar.set_label("Attention weight", fontsize=16)
 
-            fig.tight_layout()
+            fig.tight_layout(rect=[0, 0, 1, 0.95], pad=1.5)
             if savepath:
                 p = savepath
                 if len(plots) > 1:
                     stem, ext = (savepath.rsplit(".", 1) + ["png"])[:2]
                     p = f"{stem}_{tag_str}.{ext}"
-                fig.savefig(p, dpi=150, bbox_inches="tight")
+                fig.savefig(p, dpi=150, bbox_inches="tight", pad_inches=0.2, facecolor="white")
             figs.append(fig)
             
     plt.show()

@@ -1,5 +1,16 @@
 # Ignore all checkpoint files with .pkl extension
 *.pkl
+*.pt
+*.pth
+*.ckpt
+*.safetensors
+*.bin
+*.onnx
+
+# Ignore local secrets and environment files
+.env
+.env.*
+!.env.example
 
 # Also ignore common Python cache and build files
 __pycache__/
@@ -37,3 +48,22 @@ Thumbs.db
 # Ignore Jupyter notebook checkpoints
 .ipynb_checkpoints/
 
+# Ignore logs and experiment outputs
+*.log
+runs/
+wandb/
+
+# Keep only placeholders in artifact folders
+Models/*
+!Models/info.txt
+
+Embeddings/*
+!Embeddings/info.txt
+
+# Ignore raw and derived dataset payloads while keeping lightweight metadata
+Datasets/**/Data/
+Datasets/**/Video_data/
+Datasets/**/Image_data/
+Datasets/**/frames/
+Datasets/**/embeddings/
+!Datasets/info.txt

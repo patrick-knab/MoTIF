@@ -1,5 +1,5 @@
 # Core ML and Vision Libraries
-torch==2.8.0
+torch>=2.0.0
 torchvision==0.23.0
 transformers==4.55.1
 clip @ git+https://github.com/openai/CLIP.git@dcba3cb2e2827b402d2701e7e1c7d9fed8a20ef1
@@ -30,6 +30,7 @@ jupyter>=1.0.0
 matplotlib==3.10.5
 seaborn==0.13.2
 ipywidgets>=8.0.0
+streamlit>=1.38.0
 
 # Text Processing
 tokenizers==0.21.4

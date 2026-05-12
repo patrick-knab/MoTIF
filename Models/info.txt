@@ -1,1 +1,2 @@
-Please download the desired checkpoint and place `checkpoint.pkl` in this folder after the download is complete.
+Large checkpoint files are excluded from the supplementary ZIP to keep the upload below the size limit.
+

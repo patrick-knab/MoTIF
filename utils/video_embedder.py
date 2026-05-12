@@ -141,9 +141,11 @@ class VideoEmbedder(_PickleBackendsMixin):
                 )
                 t = preprocess(Image.fromarray(dummy)).unsqueeze(0).to(self.device)
                 d = self.model(t)["image_embeds"].shape[-1]
-            elif self.model_name == "pe-l14":
+            elif self.model_name in {"pe-l14", "pe-g14"}:
                 # Create a dummy clip of length 16 by repeating a single frame
-                dummy_img = Image.fromarray(np.zeros((336, 336, 3), dtype=np.uint8))
+                # Get image size from model if available, otherwise use defaults
+                img_size = getattr(self.model, 'image_size', 336 if self.model_name == "pe-l14" else 448)
+                dummy_img = Image.fromarray(np.zeros((img_size, img_size, 3), dtype=np.uint8))
                 frame = self.tokenizer(dummy_img)
                 clip = torch.stack([frame for _ in range(16)], dim=0)  # (T,C,H,W)
                 clip = clip.unsqueeze(0).to(self.device)  # (B,T,C,H,W)
@@ -344,8 +346,8 @@ class VideoEmbedder(_PickleBackendsMixin):
     def _encode_windows(
         self, windows, frames_per_window, random, batch_size
     ) -> np.ndarray:
-        # Specialized path for PE-L/14: encode entire windows as video clips
-        if self.model_name == "pe-l14":
+        # Specialized path for PE-L/14 and PE-G/14: encode entire windows as video clips
+        if self.model_name == "pe-l14" or self.model_name == "pe-g14":
             # Use configured per-GPU batch size for video clips if provided
             pe_bs = self.pe_video_batch_size or min(batch_size, 8)
             outs = []
@@ -644,7 +646,7 @@ class Create_Concepts(_PickleBackendsMixin):
             ).to(self.model.device)
             outputs = self.model.get_text_features(**inputs)
 
-        elif self.model_name == "pe-l14":
+        elif self.model_name == "pe-l14" or self.model_name == "pe-g14":
             inputs = self.tokenizer(
                 concepts).to(self.device)
             with torch.no_grad():
