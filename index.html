@@ -60,18 +60,38 @@
       .grid { display: grid; gap: 16px; grid-template-columns: 1fr 1fr; }
       @media (max-width: 768px) { .grid { grid-template-columns: 1fr; } }
 
-      .video-gallery { position: relative; overflow: hidden; border-radius: 4px; background: #000; border: 1px solid var(--border); }
-      .video-container { position: relative; width: 100%; aspect-ratio: 16 / 9; }
-      .video-slide { position: absolute; top: 0; left: 0; width: 100%; height: 100%; opacity: 0; transition: opacity 0.5s ease-in-out; }
-      .video-slide.active { opacity: 1; }
-      .video-slide video { width: 100%; height: 100%; object-fit: contain; }
-      .video-controls { position: absolute; bottom: 12px; left: 50%; transform: translateX(-50%); display: flex; gap: 8px; }
-      .video-dot { width: 8px; height: 8px; border-radius: 50%; background: rgba(255,255,255,0.5); cursor: pointer; transition: background 0.3s ease; }
-      .video-dot.active { background: white; }
-      .video-nav { position: absolute; top: 50%; transform: translateY(-50%); background: rgba(0,0,0,0.5); color: white; border: none; padding: 8px 12px; cursor: pointer; border-radius: 4px; }
-      .video-nav.prev { left: 12px; }
-      .video-nav.next { right: 12px; }
-      .video-nav:hover { background: rgba(0,0,0,0.7); }
+      .video-gallery { border-radius: 6px; background: #000; border: 1px solid var(--border); overflow: hidden; }
+      .demo-video { display: block; width: 100%; aspect-ratio: 16 / 9; background: #000; }
+      .video-picker {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 10px;
+        margin-top: 12px;
+      }
+      .video-choice {
+        width: 100%;
+        text-align: left;
+        padding: 10px 12px;
+        border: 1px solid var(--border);
+        border-radius: 6px;
+        background: var(--bg);
+        cursor: pointer;
+      }
+      .video-choice.active {
+        border-color: #2f2f2f;
+        background: #f0f0f0;
+      }
+      .video-choice strong {
+        display: block;
+        font-size: 13px;
+        margin-bottom: 2px;
+      }
+      .video-choice span {
+        display: block;
+        font-size: 12px;
+        color: var(--muted);
+        line-height: 1.4;
+      }
       .section { padding: 16px; }
       /* Offset anchors for sticky header so sections aren't hidden */
       .panel.section { scroll-margin-top: 72px; }
@@ -124,9 +144,57 @@
       .fig-container { margin: 40px 0 0 0; }
       img.fig { width: 100%; display: block; border-radius: 4px; border: 1px solid var(--border); }
       .caption { font-size: 12px; color: var(--muted); margin-top: 6px; text-align: center; }
-      .table { width: 100%; border-collapse: collapse; margin: 12px 0; }
-      .table th, .table td { padding: 8px 12px; text-align: left; border-bottom: 1px solid var(--border); }
-      .table th { background: var(--panel); font-weight: bold; }
+      .table-wrap {
+        width: 100%;
+        overflow-x: auto;
+        margin: 12px 0;
+        border: 1px solid var(--border);
+        border-radius: 6px;
+        background: var(--bg);
+      }
+      .table {
+        width: 100%;
+        border-collapse: collapse;
+        min-width: 760px;
+        font-size: 13px;
+      }
+      .table th, .table td {
+        padding: 9px 12px;
+        text-align: left;
+        border-bottom: 1px solid var(--border);
+        vertical-align: top;
+      }
+      .table th {
+        background: #f3f3f3;
+        font-weight: bold;
+      }
+      .table tbody tr:nth-child(even) td {
+        background: #fcfcfc;
+      }
+      .table .section-row td {
+        background: #efefef !important;
+        font-weight: 700;
+      }
+      .table td:first-child,
+      .table th:first-child {
+        position: sticky;
+        left: 0;
+        background-clip: padding-box;
+      }
+      .table th:first-child {
+        background: #f3f3f3;
+      }
+      .table tbody tr:nth-child(even) td:first-child {
+        background: #fcfcfc;
+      }
+      .table .section-row td:first-child {
+        background: #efefef !important;
+      }
+      .table-note {
+        font-size: 12px;
+        color: var(--muted);
+        margin-top: -4px;
+      }
       footer { color: var(--muted); font-size: 12px; padding: 20px 0; text-align: center; border-top: 1px solid var(--border); }
 
       /* Responsive adjustments */
@@ -141,8 +209,9 @@
         .section h2 { font-size: 16px; }
         .section h3 { font-size: 14px; }
         .section h4 { font-size: 16px; }
-        .table { display: block; overflow-x: auto; white-space: nowrap; font-size: 14px; }
-        .table th, .table td { padding: 6px 8px; }
+        .video-picker { grid-template-columns: 1fr 1fr; }
+        .table { min-width: 640px; font-size: 12px; }
+        .table th, .table td { padding: 7px 8px; }
       }
     </style>
   </head>
@@ -186,54 +255,35 @@
       <div class="fig-container">
       <img class="fig" src="assets/FIG_1_neu.png" alt="MoTIF Architecture" style="width: 100%; margin: 0;" />
       <div class="caption">Figure 1: MoTIF architecture showing the modular design with concept extraction, temporal bottlenecks, and interpretable classification.</div>
+      </div>
       
     </header>
 
     <main class="container stack">
       <section id="video" class="panel section">
         <div class="video-gallery">
-          <div class="video-container">
-            <!-- Video 1: Concept Visualization -->
-            <div class="video-slide active" data-title="Concept Visualization">
-              <video autoplay muted playsinline preload="metadata" controls>
-                <source src="Videos/hmdb51_bow.mp4" type="video/mp4" />
-                Your browser does not support the video tag.
-              </video>
-            </div>
-            <!-- Video 2: Temporal Bottlenecks -->
-            <div class="video-slide" data-title="Temporal Bottlenecks">
-              <video muted playsinline preload="metadata" controls>
-                <source src="Videos/breakfast_sandwich.mp4" type="video/mp4" />
-                Your browser does not support the video tag.
-              </video>
-            </div>
-            <!-- Video 3: Action Recognition -->
-            <div class="video-slide" data-title="Action Recognition">
-              <video muted playsinline preload="metadata" controls>
-                <source src="Videos/something2_separate.mp4" type="video/mp4" />
-                Your browser does not support the video tag.
-              </video>
-            </div>
-            <!-- Video 4: Temporal Reasoning -->
-            <div class="video-slide" data-title="Temporal Reasoning">
-              <video muted playsinline preload="metadata" controls>
-                <source src="Videos/ucf101_kayak.mp4" type="video/mp4" />
+          <video id="demoVideo" class="demo-video" controls playsinline preload="metadata" poster="assets/FIG_1_neu.png">
+            <source id="demoVideoSource" src="Videos/hmdb51_bow.mp4" type="video/mp4" />
             Your browser does not support the video tag.
           </video>
-            </div>
-            
-            <!-- Navigation Controls -->
-            <button class="video-nav prev" onclick="changeVideo(-1)">‹</button>
-            <button class="video-nav next" onclick="changeVideo(1)">›</button>
-            
-            <!-- Dot Indicators -->
-            <div class="video-controls">
-              <div class="video-dot active" onclick="setVideo(0)"></div>
-              <div class="video-dot" onclick="setVideo(1)"></div>
-              <div class="video-dot" onclick="setVideo(2)"></div>
-              <div class="video-dot" onclick="setVideo(3)"></div>
-            </div>
-          </div>
+        </div>
+        <div class="video-picker" id="videoPicker">
+          <button class="video-choice active" type="button" onclick="setVideo(0)">
+            <strong>Concept Visualization</strong>
+            <span>HMDB51 bow example</span>
+          </button>
+          <button class="video-choice" type="button" onclick="setVideo(1)">
+            <strong>Temporal Bottlenecks</strong>
+            <span>Breakfast sandwich example</span>
+          </button>
+          <button class="video-choice" type="button" onclick="setVideo(2)">
+            <strong>Action Recognition</strong>
+            <span>Something-Something v2 example</span>
+          </button>
+          <button class="video-choice" type="button" onclick="setVideo(3)">
+            <strong>Temporal Reasoning</strong>
+            <span>UCF101 kayak example</span>
+          </button>
         </div>
         <p class="caption" id="videoCaption">Concept Visualization: MoTIF identifies and highlights key temporal concepts in video sequences.</p>
       </section>
@@ -294,6 +344,7 @@
         <h3>Performance Comparison</h3>
         <p>The table below reflects the updated paper results. We compare zero-shot backbones, Global CBM baselines, MoTIF and MoTIF-ST variants, and representative non-interpretable video baselines. The main takeaway remains that temporal concept bottlenecks consistently improve over global concept pooling while providing interpretable video reasoning.</p>
         
+        <div class="table-wrap">
         <table class="table">
           <thead>
             <tr>
@@ -305,40 +356,42 @@
             </tr>
           </thead>
           <tbody>
-            <tr><td colspan="5"><strong>Zero-shot</strong></td></tr>
+            <tr class="section-row"><td colspan="5">Zero-shot</td></tr>
             <tr><td>CLIP-RN/50</td><td>18.6 ± 2.6</td><td>29.8 ± 0.5</td><td>57.2 ± 0.9</td><td>0.8</td></tr>
             <tr><td>CLIP-ViT-B/32</td><td>23.2 ± 2.9</td><td>38.1 ± 0.3</td><td>59.9 ± 0.4</td><td>0.9</td></tr>
             <tr><td>CLIP-ViT-L/14</td><td>31.1 ± 4.7</td><td>45.7 ± 0.1</td><td>70.6 ± 0.5</td><td>0.9</td></tr>
             <tr><td>SigLIP-L/14</td><td>23.6 ± 5.0</td><td>49.3 ± 0.8</td><td>80.4 ± 1.4</td><td>1.3</td></tr>
             <tr><td>PE-L/14</td><td>41.4 ± 7.0</td><td>56.7 ± 0.6</td><td>74.6 ± 0.9</td><td>2.2</td></tr>
             
-            <tr><td colspan="5"><strong>Global CBM</strong></td></tr>
+            <tr class="section-row"><td colspan="5">Global CBM</td></tr>
             <tr><td>CLIP-RN/50</td><td>36.5 ± 9.0</td><td>59.3 ± 0.8</td><td>80.0 ± 0.7</td><td>13.7</td></tr>
             <tr><td>CLIP-ViT-B/32</td><td>37.2 ± 9.1</td><td>61.6 ± 1.6</td><td>82.8 ± 0.7</td><td>15.2</td></tr>
             <tr><td>CLIP-ViT-L/14</td><td>55.3 ± 10.2</td><td>68.4 ± 0.5</td><td>90.0 ± 1.1</td><td>18.1</td></tr>
             <tr><td>SigLIP-L/14</td><td>57.1 ± 10.9</td><td>65.0 ± 2.1</td><td>90.5 ± 0.5</td><td>19.6</td></tr>
             <tr><td>PE-L/14</td><td>72.9 ± 10.3</td><td>74.4 ± 0.6</td><td>94.5 ± 0.6</td><td>25.5</td></tr>
             
-            <tr><td colspan="5"><strong>MoTIF (Ours)</strong></td></tr>
+            <tr class="section-row"><td colspan="5">MoTIF (Ours)</td></tr>
             <tr><td>MoTIF (RN/50)</td><td>52.8 ± 6.9</td><td>62.8 ± 1.1</td><td>82.8 ± 0.6</td><td>16.0</td></tr>
             <tr><td>MoTIF (ViT-B/32)</td><td>53.4 ± 6.9</td><td>65.3 ± 1.8</td><td>85.6 ± 1.2</td><td>17.5</td></tr>
             <tr><td>MoTIF (ViT-L/14)</td><td>69.3 ± 6.2</td><td>73.3 ± 1.0</td><td>93.2 ± 0.7</td><td>20.4</td></tr>
             <tr><td>MoTIF-ST (ViT-L/14)</td><td>71.1 ± 7.7</td><td>74.8 ± 1.0</td><td>93.8 ± 0.9</td><td>23.9</td></tr>
-            <tr><td>MoTIF (SigLIP-L/14)</td><td><u>73.5</u> ± 8.6</td><td>73.2 ± 2.4</td><td>94.0 ± 0.8</td><td>22.4</td></tr>
-            <tr><td>MoTIF (PE-L/14)</td><td><strong>83.6</strong> ± 6.5</td><td><u>79.6</u> ± 0.3</td><td>95.4 ± 0.7</td><td>30.0</td></tr>
-            <tr><td>MoTIF-ST (PE-L/14)</td><td>84.1 ± 6.4</td><td><u>79.6</u> ± 0.7</td><td><u>96.3</u> ± 0.6</td><td>35.1</td></tr>
+            <tr><td>MoTIF (SigLIP-L/14)</td><td>73.5 ± 8.6</td><td>73.2 ± 2.4</td><td>94.0 ± 0.8</td><td>22.4</td></tr>
+            <tr><td>MoTIF (PE-L/14)</td><td>83.6 ± 6.5</td><td>79.6 ± 0.3</td><td>95.4 ± 0.7</td><td>30.0</td></tr>
+            <tr><td>MoTIF-ST (PE-L/14)</td><td>84.1 ± 6.4</td><td>79.6 ± 0.7</td><td>96.3 ± 0.6</td><td>35.1</td></tr>
             
-            <tr><td colspan="5"><strong>Existing Video Models</strong></td></tr>
+            <tr class="section-row"><td colspan="5">Existing Video Models</td></tr>
             <tr><td>TSM</td><td>59.1¹</td><td>73.5</td><td>95.9</td><td>61.7</td></tr>
-            <tr><td>No frame left behind</td><td>62.0¹</td><td>73.4¹</td><td><u>96.4¹</u></td><td><u>62.7¹</u></td></tr>
-            <tr><td>VideoMAE V2</td><td>--</td><td><strong>88.1</strong></td><td><strong>99.6</strong></td><td><strong>76.8</strong></td></tr>
+            <tr><td>No frame left behind</td><td>62.0¹</td><td>73.4¹</td><td>96.4¹</td><td>62.7¹</td></tr>
+            <tr><td>VideoMAE V2</td><td>--</td><td>88.1</td><td>99.6</td><td>76.8</td></tr>
           </tbody>
         </table>
-        <p class="muted"><small>¹ Results from literature. Bold indicates best performance, underlined indicates second best.</small></p>
+        </div>
+        <p class="table-note">¹ Literature results. Ranking emphasis was removed here to avoid ambiguity from ties and mixed interpretable vs. non-interpretable comparisons.</p>
 
         <h3>Comparison with DANCE</h3>
         <p>We also compare MoTIF to DANCE and related explainable action-recognition baselines on UCF101, HAA-100, and HAA-500. Unlike DANCE, MoTIF explicitly models temporally localized concept activations and how they evolve over time.</p>
 
+        <div class="table-wrap">
         <table class="table">
           <thead>
             <tr>
@@ -355,58 +408,64 @@
             <tr><td>LF-CBM [30]</td><td>Disentangled concepts</td><td>85.5</td><td>66.5</td><td>–</td></tr>
             <tr><td>MoTIF</td><td>ViT-B/32</td><td>88.5 ± 0.6</td><td>61.3</td><td>55.3</td></tr>
             <tr><td>MoTIF</td><td>PE-L/14</td><td>94.8 ± 0.4</td><td>87.8</td><td>80.9</td></tr>
-            <tr><td>MoTIF</td><td>PE-G/14</td><td><strong>98.0 ± 0.2</strong></td><td><strong>89.9</strong></td><td><strong>84.1</strong></td></tr>
+            <tr><td>MoTIF</td><td>PE-G/14</td><td>98.0 ± 0.2</td><td>89.9</td><td>84.1</td></tr>
           </tbody>
         </table>
+        </div>
 
         <h3>Concept Interventions</h3>
         <p>MoTIF’s bottleneck also supports direct interventions. The destructive columns report normalized prediction overlap after removing concepts or windows, while the corrective columns report top-1 repair rate after targeted manual edits on misclassified top-5 cases.</p>
 
-        <h4>Breakfast</h4>
+        <h4>Destructive Interventions</h4>
+        <div class="table-wrap">
         <table class="table">
           <thead>
             <tr>
+              <th>Dataset</th>
               <th>k</th>
               <th>Global Top-k ↓</th>
               <th>Global Rand. ↓</th>
               <th>Local Slot Top-k ↓</th>
               <th>Window Top-k ↓</th>
               <th>Window Rand. ↓</th>
-              <th>Global Edit ↑</th>
-              <th>Local Edit ↑</th>
             </tr>
           </thead>
           <tbody>
-            <tr><td>0</td><td>1.000</td><td>1.000</td><td>1.000</td><td>1.000</td><td>1.000</td><td>–</td><td>–</td></tr>
-            <tr><td>1</td><td>0.496</td><td>0.972</td><td>0.954</td><td>0.866</td><td>0.986</td><td>0.20</td><td>0.03</td></tr>
-            <tr><td>2</td><td>0.229</td><td>0.950</td><td>0.933</td><td>0.775</td><td>0.977</td><td>0.47</td><td>0.10</td></tr>
-            <tr><td>3</td><td>0.085</td><td>0.937</td><td>0.908</td><td>0.754</td><td>0.973</td><td>0.57</td><td>0.17</td></tr>
-            <tr><td>4</td><td>0.028</td><td>0.909</td><td>0.891</td><td>0.732</td><td>0.960</td><td>0.80</td><td>0.20</td></tr>
+            <tr><td>Breakfast</td><td>0</td><td>1.000</td><td>1.000</td><td>1.000</td><td>1.000</td><td>1.000</td></tr>
+            <tr><td>Breakfast</td><td>1</td><td>0.496</td><td>0.972</td><td>0.954</td><td>0.866</td><td>0.986</td></tr>
+            <tr><td>Breakfast</td><td>2</td><td>0.229</td><td>0.950</td><td>0.933</td><td>0.775</td><td>0.977</td></tr>
+            <tr><td>Breakfast</td><td>3</td><td>0.085</td><td>0.937</td><td>0.908</td><td>0.754</td><td>0.973</td></tr>
+            <tr><td>Breakfast</td><td>4</td><td>0.028</td><td>0.909</td><td>0.891</td><td>0.732</td><td>0.960</td></tr>
+            <tr><td>HMDB51</td><td>0</td><td>1.000</td><td>1.000</td><td>1.000</td><td>1.000</td><td>1.000</td></tr>
+            <tr><td>HMDB51</td><td>1</td><td>0.603</td><td>0.975</td><td>0.934</td><td>0.875</td><td>0.963</td></tr>
+            <tr><td>HMDB51</td><td>2</td><td>0.374</td><td>0.959</td><td>0.892</td><td>0.801</td><td>0.947</td></tr>
+            <tr><td>HMDB51</td><td>3</td><td>0.238</td><td>0.942</td><td>0.852</td><td>0.731</td><td>0.918</td></tr>
+            <tr><td>HMDB51</td><td>4</td><td>0.142</td><td>0.926</td><td>0.809</td><td>0.674</td><td>0.886</td></tr>
           </tbody>
         </table>
+        </div>
 
-        <h4>HMDB51</h4>
+        <h4>Corrective Interventions</h4>
+        <div class="table-wrap">
         <table class="table">
           <thead>
             <tr>
               <th>k</th>
-              <th>Global Top-k ↓</th>
-              <th>Global Rand. ↓</th>
-              <th>Local Slot Top-k ↓</th>
-              <th>Window Top-k ↓</th>
-              <th>Window Rand. ↓</th>
-              <th>Global Edit ↑</th>
-              <th>Local Edit ↑</th>
+              <th>Breakfast Global Edit ↑</th>
+              <th>Breakfast Local Edit ↑</th>
+              <th>HMDB51 Global Edit ↑</th>
+              <th>HMDB51 Local Edit ↑</th>
             </tr>
           </thead>
           <tbody>
-            <tr><td>0</td><td>1.000</td><td>1.000</td><td>1.000</td><td>1.000</td><td>1.000</td><td>–</td><td>–</td></tr>
-            <tr><td>1</td><td>0.603</td><td>0.975</td><td>0.934</td><td>0.875</td><td>0.963</td><td>0.47</td><td>0.10</td></tr>
-            <tr><td>2</td><td>0.374</td><td>0.959</td><td>0.892</td><td>0.801</td><td>0.947</td><td>0.60</td><td>0.23</td></tr>
-            <tr><td>3</td><td>0.238</td><td>0.942</td><td>0.852</td><td>0.731</td><td>0.918</td><td>0.70</td><td>0.27</td></tr>
-            <tr><td>4</td><td>0.142</td><td>0.926</td><td>0.809</td><td>0.674</td><td>0.886</td><td>0.83</td><td>0.30</td></tr>
+            <tr><td>0</td><td>–</td><td>–</td><td>–</td><td>–</td></tr>
+            <tr><td>1</td><td>0.20</td><td>0.03</td><td>0.47</td><td>0.10</td></tr>
+            <tr><td>2</td><td>0.47</td><td>0.10</td><td>0.60</td><td>0.23</td></tr>
+            <tr><td>3</td><td>0.57</td><td>0.17</td><td>0.70</td><td>0.27</td></tr>
+            <tr><td>4</td><td>0.80</td><td>0.20</td><td>0.83</td><td>0.30</td></tr>
           </tbody>
         </table>
+        </div>
 
         <p style="margin-top: 16px;">Pre-trained checkpoints for all MoTIF models are available at <a href="https://huggingface.co/P4ddyki/MoTIF/tree/main" target="_blank" rel="noopener">Hugging Face</a>.</p>
       </section>
@@ -440,90 +499,58 @@
       const videos = [
         {
           title: "Concept Visualization",
+          src: "Videos/hmdb51_bow.mp4",
           description: "MoTIF identifies and highlights key temporal concepts in video sequences, showing how different concepts contribute to classification decisions."
         },
         {
           title: "Temporal Bottlenecks", 
+          src: "Videos/breakfast_sandwich.mp4",
           description: "Demonstration of temporal bottlenecks capturing the most relevant temporal patterns for video understanding tasks."
         },
         {
           title: "Action Recognition",
+          src: "Videos/something2_separate.mp4",
           description: "MoTIF's performance on action recognition tasks, showing interpretable concept-based reasoning for complex actions."
         },
         {
           title: "Temporal Reasoning",
+          src: "Videos/ucf101_kayak.mp4",
           description: "Temporal reasoning capabilities of MoTIF, demonstrating understanding of temporal dependencies and sequences."
         }
       ];
 
-      function changeVideo(direction) {
-        const slides = document.querySelectorAll('.video-slide');
-        const dots = document.querySelectorAll('.video-dot');
+      function renderVideo() {
+        const video = document.getElementById('demoVideo');
+        const source = document.getElementById('demoVideoSource');
+        const buttons = document.querySelectorAll('.video-choice');
         const caption = document.getElementById('videoCaption');
-        
-        // Pause current video
-        const currentVideo = slides[currentVideoIndex].querySelector('video');
-        if (currentVideo) currentVideo.pause();
-        
-        // Remove active class
-        slides[currentVideoIndex].classList.remove('active');
-        dots[currentVideoIndex].classList.remove('active');
-        
-        // Calculate new index
-        currentVideoIndex += direction;
-        if (currentVideoIndex >= slides.length) currentVideoIndex = 0;
-        if (currentVideoIndex < 0) currentVideoIndex = slides.length - 1;
-        
-        // Add active class
-        slides[currentVideoIndex].classList.add('active');
-        dots[currentVideoIndex].classList.add('active');
-        
-        // Update caption
+
+        source.src = videos[currentVideoIndex].src;
+        video.load();
+        buttons.forEach((button, index) => {
+          button.classList.toggle('active', index === currentVideoIndex);
+        });
         caption.textContent = videos[currentVideoIndex].description;
-        
-        // Play new video
-        const newVideo = slides[currentVideoIndex].querySelector('video');
-        if (newVideo) {
-          newVideo.currentTime = 0;
-          newVideo.play().catch(() => {}); // Ignore autoplay errors
-        }
+
+        video.play().catch(() => {});
+      }
+
+      function changeVideo(direction) {
+        currentVideoIndex += direction;
+        if (currentVideoIndex >= videos.length) currentVideoIndex = 0;
+        if (currentVideoIndex < 0) currentVideoIndex = videos.length - 1;
+        renderVideo();
       }
 
       function setVideo(index) {
-        const slides = document.querySelectorAll('.video-slide');
-        const dots = document.querySelectorAll('.video-dot');
-        const caption = document.getElementById('videoCaption');
-        
-        // Pause current video
-        const currentVideo = slides[currentVideoIndex].querySelector('video');
-        if (currentVideo) currentVideo.pause();
-        
-        // Remove active class
-        slides[currentVideoIndex].classList.remove('active');
-        dots[currentVideoIndex].classList.remove('active');
-        
-        // Set new index
         currentVideoIndex = index;
-        
-        // Add active class
-        slides[currentVideoIndex].classList.add('active');
-        dots[currentVideoIndex].classList.add('active');
-        
-        // Update caption
-        caption.textContent = videos[currentVideoIndex].description;
-        
-        // Play new video
-        const newVideo = slides[currentVideoIndex].querySelector('video');
-        if (newVideo) {
-          newVideo.currentTime = 0;
-          newVideo.play().catch(() => {}); // Ignore autoplay errors
-        }
+        renderVideo();
       }
 
       // Touch/swipe support for mobile
       let startX = 0;
       let endX = 0;
-      const videoContainer = document.querySelector('.video-container');
+      const videoContainer = document.querySelector('.video-gallery');
       
       videoContainer.addEventListener('touchstart', (e) => {
         startX = e.touches[0].clientX;
@@ -547,6 +574,8 @@
         if (e.key === 'ArrowLeft') changeVideo(-1);
         if (e.key === 'ArrowRight') changeVideo(1);
       });
+
+      renderVideo();
     </script>
   </body>
   </html>
