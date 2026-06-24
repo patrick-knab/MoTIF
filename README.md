@@ -5,7 +5,7 @@
 
 MoTIF (Moving Temporal Interpretable Framework) extends concept bottleneck modeling from static images to videos. It combines concept activations from vision-language models with temporal modeling to explain video predictions through global concept importance, local concept windows, and temporal dependency maps.
 
-Accepted as a spotlight non-archival paper at the XAI4CV CVPR Workshop 2026.
+Accepted as a Spotlight paper at CompLearn ICML 2026 and XAI4CV CVPR 2026.
 
 ![MoTIF overview](assets/FIG_1_neu.png)
 
