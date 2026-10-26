@@ -27,6 +27,7 @@ Concept Bottleneck Models (CBMs) enable interpretable image classification by st
 - `train_MoTIF.py`: train the temporal MoTIF model
 - `train_MoTIF-ST.py`: train the space-time MoTIF-ST variant
 - `embedding.py`: generate video embeddings used by the models
+- `finetune_pe_l14_ssv2.py`: experimental partial backbone fine-tuning on SSV2 manifests (not the paper's LoRA adaptation)
 - `save_videos.py`: prepare derived `Video_data/` and `Image_data/` folders from raw datasets
 - `MoTIF.ipynb`, `MoTIF-ST.ipynb`: inspect predictions, concepts, and explanations
 - `Synthetic_temporal_pattern.ipynb`: synthetic temporal pattern experiments
@@ -52,17 +53,43 @@ Pretrained checkpoints are available on [Hugging Face](https://huggingface.co/P4
 
 MoTIF was run in our experiments with Python 3.13.5 on GPU machines. A CUDA-enabled GPU is strongly recommended, especially for embedding generation and training.
 
-Install the main dependencies:
+### Reproducible setup with uv (recommended)
+
+Install [uv](https://docs.astral.sh/uv/) (Python 3.11–3.13) and create the locked environment:
+
+```bash
+uv sync --locked
+```
+
+Run commands inside that environment with `uv run`:
+
+```bash
+uv run --locked python utils/extract_cbm_concepts_from_image_data_windows.py --help
+uv run --locked python finetune_pe_l14_ssv2.py --help
+```
+
+The committed `uv.lock` pins the resolved dependency graph, including PyTorch 2.8.0 and torchvision 0.23.0. The environment was smoke-tested on macOS with Python 3.11; CUDA training and live Qwen/vLLM inference require a suitable GPU host.
+
+### pip setup
+
+If you do not use uv, install the main dependencies with pip:
 
 ```bash
 pip install -r requirements.txt
 ```
 
-For VLM-based concept extraction with vLLM, install the extra dependencies as well:
+### Optional vLLM server (separate Linux/CUDA environment)
+
+The extraction client is included in the main environment and can connect to a local or remote OpenAI-compatible server. The vLLM server requirements pin a different PyTorch/CUDA stack; install them in a separate environment on the GPU host:
 
 ```bash
-pip install -r requirements_vllm.txt
+uv venv --python 3.11 .venv-vllm
+uv pip install --python .venv-vllm/bin/python \
+  --extra-index-url https://download.pytorch.org/whl/cu128 \
+  -r requirements_vllm.txt
 ```
+
+See `slurm_cbm_extract_windows.sbatch` for an example server/extraction launcher. Paths supplied as `file://` media must exist on the server host and be permitted by vLLM's `--allowed-local-media-path` setting. The serving environment is separate from `uv.lock` and has not been validated on this Mac.
 
 ## Data Layout
 
@@ -189,13 +216,36 @@ This repository also includes an optional pipeline for extracting concepts from 
 
 Typical workflow:
 
-1. Install the extra dependencies from `requirements_vllm.txt`.
-2. Start a vLLM server with a vision-language model.
+1. Install the main environment with `uv sync --locked`.
+2. Start a vLLM server with a vision-language model in the separate Linux/CUDA serving environment described above.
 3. Adapt `slurm_cbm_extract_windows.sbatch` to your environment.
 4. Run concept extraction using the utilities in `MoTIF_DCBM_Style/` or `utils/extract_cbm_concepts_from_image_data_windows.py`.
 5. Pass the generated concept directory to `train_MoTIF.py` or `train_MoTIF-ST.py` via the `agent_run_folder` setting when using agentic concepts.
 
 The extraction pipeline supports ablation settings such as `json_only`, `json+action`, and `action_only`.
+
+## Experimental SSV2 Backbone Fine-tuning
+
+`finetune_pe_l14_ssv2.py` fine-tunes the last visual transformer blocks, output layers, and logit scale against frozen class-text embeddings. It is an experimental utility; it does not implement the LoRA adaptation reported in the paper and should not be used as a reproduction of those adapted results.
+
+Prepare `class_names.json` as an ordered JSON list of class names. Prepare separate training and validation JSONL manifests, each with one object per video:
+
+```json
+{"video_path": "videos/123.mp4", "class_idx": 0}
+```
+
+`class_idx` indexes the class-name list. Video paths can be absolute or relative to the manifest's directory. Use the official dataset splits, and construct any balanced subset before running this script; it does not select or balance the data itself.
+
+```bash
+uv run --locked python finetune_pe_l14_ssv2.py \
+  --manifest /path/to/train_manifest.jsonl \
+  --val-manifest /path/to/val_manifest.jsonl \
+  --class-names /path/to/class_names.json \
+  --out-dir pe_l14_ssv2_ft50 \
+  --backbone pe-l14 --epochs 5 --batch-size 4 --grad-accum 8
+```
+
+Pretrained weights are downloaded on first use. Training writes `latest.pt`, `best.pt`, and `metrics.jsonl`; use a new output directory for each run. The inputs and full GPU training are not included in the smoke validation of the environment.
 
 ## Citation
 

@@ -505,7 +505,7 @@ def propose_concepts_with_vlm(
         + dataset_hint
         + "\n\nYou are given several frames sampled across a full video. "
         "Your job is to propose human-interpretable concepts that are useful to classify the video, "
-        "with a strong bias toward concepts that distinguish this class from other HMDB actions.\n\n"
+        "with a strong bias toward concepts that distinguish this class from other actions in the dataset.\n\n"
         "Return ONLY valid JSON with schema: "
         '{"concepts": [...], "temporal_concepts": [...], "action_concepts": [...]}.\n\n'
         "Hard requirements:\n"

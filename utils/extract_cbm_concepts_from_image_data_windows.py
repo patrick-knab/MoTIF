@@ -23,8 +23,8 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Sequence
 
 try:
-    # When executed as: `python scripts/extract_cbm_concepts_from_image_data_windows.py`
-    from cbm_concept_extraction_utils import (
+    # When imported as: `from utils.extract_cbm_concepts_from_image_data_windows import main`
+    from .cbm_concept_extraction_utils import (
         IMG_EXTS,
         gather_instances,
         load_frames,
@@ -33,8 +33,8 @@ try:
         write_json,
     )
 except ImportError:
-    # When executed as: `python -m scripts.extract_cbm_concepts_from_image_data_windows`
-    from scripts.cbm_concept_extraction_utils import (  # type: ignore
+    # When executed as: `python utils/extract_cbm_concepts_from_image_data_windows.py`
+    from cbm_concept_extraction_utils import (
         IMG_EXTS,
         gather_instances,
         load_frames,
@@ -296,5 +296,3 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
-
-

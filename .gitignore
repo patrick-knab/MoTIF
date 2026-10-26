@@ -18,6 +18,11 @@ __pycache__/
 *$py.class
 *.so
 .Python
+.venv/
+.venv-vllm/
+.pytest_cache/
+/pe_l14_ssv2_ft50/
+/tests/
 build/
 develop-eggs/
 dist/
