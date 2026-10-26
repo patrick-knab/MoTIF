@@ -3,8 +3,8 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>MoTIF: Concepts in Motion - Temporal Bottlenecks for Interpretable Video Classification</title>
-    <meta name="description" content="MoTIF: A novel approach to interpretable video classification using temporal bottlenecks." />
+    <title>MoTIF: Concepts in Motion — Temporal Concept Bottleneck Model for Interpretable Video Classification</title>
+    <meta name="description" content="MoTIF: a temporal concept bottleneck model for interpretable video classification, accepted at NeurIPS 2026." />
     <style>
       :root {
         --bg: #ffffff;
@@ -72,7 +72,7 @@
         width: 100%;
         height: 100%;
         background: #000;
-        object-fit: cover;
+        object-fit: contain;
         object-position: center;
       }
       .video-picker {
@@ -230,14 +230,6 @@
     </style>
   </head>
   <body>
-    <!--
-      Edit the content below for your paper. Replace placeholders with MoTIF details.
-      Video:
-        - Put a file at MoTIF/docs/assets/teaser.mp4, or
-        - Use URL params: ?video=<url>&poster=<url>
-      Buttons:
-        - Replace hrefs for Paper/Code/ArXiv/Demo.
-    -->
     <div class="topbar">
       <div class="container nav">
         <div class="brand">MoTIF</div>
@@ -251,9 +243,9 @@
     </div>
 
     <header class="hero container">
-      <h1 class="title">Concepts in Motion: Temporal Bottlenecks for Interpretable Video Classification</h1>
+      <h1 class="title">Concepts in Motion: Temporal Concept Bottleneck Model for Interpretable Video Classification</h1>
       <h2 class="subtitle"><strong>MoTIF</strong> - Moving Temporal Interpretable Framework </h2>
-      <p class="authors">Patrick Knab, Sascha Marton, Philipp Schubert, Drago Nilo, Christian Bartelt</p>
+      <p class="authors">Patrick Knab, Sascha Marton, Philipp J. Schubert, Drago Guggiana, Christian Bartelt</p>
         <p class="affiliation"><a href="https://www.tu-clausthal.de/" target="_blank" rel="noopener">Technical University of Clausthal</a>, Germany • <a href="https://bartelt-lab.github.io/" target="_blank" rel="noopener">CORE Research Group</a> • <a href="https://ramblr.ai/" target="_blank" rel="noopener">Ramblr.ai Research</a>, Germany</p>
       <div class="cta">
         <a class="btn primary" href="https://arxiv.org/abs/2509.20899" target="_blank" rel="noopener">Paper</a>
@@ -262,7 +254,7 @@
         <a class="btn" href="#video">Demo</a>
       </div>
       <div class="notice">
-        <strong>Spotlight acceptances:</strong> MoTIF was accepted as a Spotlight paper at <strong>CompLearn @ ICML 2026</strong> and <strong>XAI4CV @ CVPR 2026</strong>.
+        <strong>Accepted at NeurIPS 2026 (main track).</strong> MoTIF also received the Best Paper Award at <strong>CompLearn @ ICML 2026</strong> and was accepted as a Spotlight paper at <strong>XAI4CV @ CVPR 2026</strong>.
       </div>
 
       
@@ -276,8 +268,8 @@
     <main class="container stack">
       <section id="video" class="panel section">
         <div class="video-gallery">
-          <video id="demoVideo" class="demo-video" controls playsinline preload="metadata" poster="assets/FIG_1_neu.png">
-            <source id="demoVideoSource" src="Videos/hmdb51_bow.mp4" type="video/mp4" />
+          <video id="demoVideo" class="demo-video" controls autoplay muted loop playsinline preload="metadata" aria-label="MoTIF video explanation demo">
+            <source id="demoVideoSource" src="Videos/hmdb51_bow.mp4?v=h264" type="video/mp4" />
             Your browser does not support the video tag.
           </video>
         </div>
@@ -300,14 +292,14 @@
           </button>
         </div>
         <p class="caption" id="videoCaption">Concept Visualization: MoTIF identifies and highlights key temporal concepts in video sequences.</p>
+        <p id="videoStatus" role="status" class="caption" hidden></p>
+        <p class="caption"><a id="videoDownload" href="Videos/hmdb51_bow.mp4?v=h264" download>Download this video</a></p>
       </section>
 
       <section id="abstract" class="panel section">
         <h2>Abstract</h2>
         <p>
-            Conceptual models such as Concept Bottleneck Models (CBMs) have driven substantial progress in improving interpretability for image classification by leveraging human-interpretable concepts. However, extending these models from static images to sequences of images, such as video data, introduces a significant challenge due to the temporal dependencies inherent in videos, which are essential for capturing actions and events
-            In this work, we introduce <strong>MoTIF</strong> (Moving Temporal Interpretable Framework), an architectural design inspired by a transformer that adapts the concept bottleneck framework for video classification and handles sequences of arbitrary length. Within the video domain, concepts refer to semantic entities such as objects, attributes, or higher-level components (e.g., "bow," "mount," "shoot") that reoccur across time—forming motifs collectively describing and explaining actions.
-            Our design explicitly enables three complementary perspectives: global concept importance across the entire video, local concept relevance within specific windows, and temporal dependencies of a concept over time. Our results demonstrate that the concept-based modeling paradigm can be effectively transferred to video data, enabling a better understanding of concept contributions in temporal contexts while maintaining competitive performance.
+            Concept Bottleneck Models (CBMs) enable interpretable image classification by structuring predictions around human-understandable concepts, but extending this paradigm to video remains challenging due to the difficulty of extracting concepts and modeling them over time. In this paper, we introduce <strong>MoTIF</strong> (Moving Temporal Interpretable Framework), a transformer-based concept architecture that operates on sequences of temporally grounded concept activations, by employing per-concept temporal self-attention to model when individual concepts recur and how their temporal patterns contribute to predictions. Central to the framework is a class-conditioned VLM-based concept discovery module that extracts object- and action-centric textual concepts from training videos, yielding temporally expressive concept sets without manual concept annotation. Across multiple video benchmarks, this combination improves over global concept bottlenecks and remains competitive within the interpretable concept-bottleneck setting, while narrowing the gap to strong black-box video baselines that we report as contextual references.
         </p>
       </section>
 
@@ -342,7 +334,7 @@
         </div>
         <div class="stack" style="margin-top:12px">
           <h4>Video and concept embeddings</h4>
-          <p>Frames are embedded with an image–text aligned backbone (e.g., CLIP) into a shared space. For each temporal window we use either a representative frame or a video‑adapted CLIP embedding. Concept activations X (T×C) are obtained as cosine similarities to a bank of human‑interpretable actions and objects. The concept bank is built from natural‑language descriptions; a large language model proposes candidate concepts, and we adopt the resulting set directly.</p>
+          <p>Frames are embedded with an image–text aligned backbone (e.g., CLIP) into a shared space. For each temporal window we use either a representative frame or a video‑adapted embedding. Concept activations X (T×C) are obtained as cosine similarities to a bank of human‑interpretable actions and objects. A class-conditioned vision–language model proposes object and action concepts from training videos; the concepts are cleaned, deduplicated, and filtered for semantic redundancy before building the concept bank.</p>
           <h4>Per‑channel temporal self‑attention (diagonal)</h4>
           <p>Standard transformers mix channels in Q/K/V projections, which obscures concept attribution. MoTIF keeps concepts independent using depthwise 1×1 projections so each concept owns its Q, K and V. Attention is computed within a concept across time, yielding a T×T weight map per concept and refined activations.</p>
           <h4>Per‑concept affine transformation</h4>
@@ -356,7 +348,7 @@
         <h2>Results</h2>
         
         <h3>Performance Comparison</h3>
-        <p>The table below reflects the updated paper results. We compare zero-shot backbones, Global CBM baselines, MoTIF and MoTIF-ST variants, and representative non-interpretable video baselines. The main takeaway remains that temporal concept bottlenecks consistently improve over global concept pooling while providing interpretable video reasoning.</p>
+        <p>Top-1 accuracy (%) from Table 10 of the NeurIPS 2026 paper, using VLM-based concept discovery. Results are mean ± standard deviation across train-test splits where reported. Global CBM and MoTIF use matched concept sets and backbones; non-interpretable video models provide contextual references.</p>
         
         <div class="table-wrap">
         <table class="table">
@@ -374,24 +366,25 @@
             <tr><td>CLIP-RN/50</td><td>18.6 ± 2.6</td><td>29.8 ± 0.5</td><td>57.2 ± 0.9</td><td>0.8</td></tr>
             <tr><td>CLIP-ViT-B/32</td><td>23.2 ± 2.9</td><td>38.1 ± 0.3</td><td>59.9 ± 0.4</td><td>0.9</td></tr>
             <tr><td>CLIP-ViT-L/14</td><td>31.1 ± 4.7</td><td>45.7 ± 0.1</td><td>70.6 ± 0.5</td><td>0.9</td></tr>
-            <tr><td>SigLIP-L/14</td><td>23.6 ± 5.0</td><td>49.3 ± 0.8</td><td>80.4 ± 1.4</td><td>1.3</td></tr>
             <tr><td>PE-L/14</td><td>41.4 ± 7.0</td><td>56.7 ± 0.6</td><td>74.6 ± 0.9</td><td>2.2</td></tr>
+            <tr><td>PE-G/14</td><td>47.4 ± 5.4</td><td>60.7 ± 1.0</td><td>74.6 ± 0.9</td><td>2.2</td></tr>
             
             <tr class="section-row"><td colspan="5">Global CBM</td></tr>
-            <tr><td>CLIP-RN/50</td><td>36.5 ± 9.0</td><td>59.3 ± 0.8</td><td>80.0 ± 0.7</td><td>13.7</td></tr>
-            <tr><td>CLIP-ViT-B/32</td><td>37.2 ± 9.1</td><td>61.6 ± 1.6</td><td>82.8 ± 0.7</td><td>15.2</td></tr>
-            <tr><td>CLIP-ViT-L/14</td><td>55.3 ± 10.2</td><td>68.4 ± 0.5</td><td>90.0 ± 1.1</td><td>18.1</td></tr>
-            <tr><td>SigLIP-L/14</td><td>57.1 ± 10.9</td><td>65.0 ± 2.1</td><td>90.5 ± 0.5</td><td>19.6</td></tr>
-            <tr><td>PE-L/14</td><td>72.9 ± 10.3</td><td>74.4 ± 0.6</td><td>94.5 ± 0.6</td><td>25.5</td></tr>
+            <tr><td>CLIP-RN/50</td><td>36.9 ± 7.7</td><td>61.8 ± 1.7</td><td>84.1 ± 0.8</td><td>17.0</td></tr>
+            <tr><td>CLIP-ViT-B/32</td><td>38.3 ± 9.5</td><td>62.6 ± 0.8</td><td>86.4 ± 0.6</td><td>18.2</td></tr>
+            <tr><td>CLIP-ViT-L/14</td><td>57.0 ± 8.0</td><td>71.0 ± 1.1</td><td>93.4 ± 0.7</td><td>22.0</td></tr>
+            <tr><td>PE-L/14</td><td>72.4 ± 8.3</td><td>76.4 ± 0.8</td><td>96.3 ± 0.1</td><td>31.3</td></tr>
+            <tr><td>PE-G/14</td><td>75.8 ± 7.1</td><td>77.8 ± 0.8</td><td>97.5 ± 0.4</td><td>33.6</td></tr>
             
             <tr class="section-row"><td colspan="5">MoTIF (Ours)</td></tr>
-            <tr><td>MoTIF (RN/50)</td><td>52.8 ± 6.9</td><td>62.8 ± 1.1</td><td>82.8 ± 0.6</td><td>16.0</td></tr>
-            <tr><td>MoTIF (ViT-B/32)</td><td>53.4 ± 6.9</td><td>65.3 ± 1.8</td><td>85.6 ± 1.2</td><td>17.5</td></tr>
-            <tr><td>MoTIF (ViT-L/14)</td><td>69.3 ± 6.2</td><td>73.3 ± 1.0</td><td>93.2 ± 0.7</td><td>20.4</td></tr>
-            <tr><td>MoTIF-ST (ViT-L/14)</td><td>71.1 ± 7.7</td><td>74.8 ± 1.0</td><td>93.8 ± 0.9</td><td>23.9</td></tr>
-            <tr><td>MoTIF (SigLIP-L/14)</td><td>73.5 ± 8.6</td><td>73.2 ± 2.4</td><td>94.0 ± 0.8</td><td>22.4</td></tr>
-            <tr><td>MoTIF (PE-L/14)</td><td>83.6 ± 6.5</td><td>79.6 ± 0.3</td><td>95.4 ± 0.7</td><td>30.0</td></tr>
-            <tr><td>MoTIF-ST (PE-L/14)</td><td>84.1 ± 6.4</td><td>79.6 ± 0.7</td><td>96.3 ± 0.6</td><td>35.1</td></tr>
+            <tr><td>MoTIF (RN/50)</td><td>55.1 ± 7.1</td><td>66.2 ± 0.5</td><td>86.7 ± 0.6</td><td>20.0</td></tr>
+            <tr><td>MoTIF (ViT-B/32)</td><td>52.7 ± 5.8</td><td>68.5 ± 1.0</td><td>88.5 ± 0.6</td><td>20.7</td></tr>
+            <tr><td>MoTIF (ViT-L/14)</td><td>71.0 ± 6.2</td><td>76.1 ± 0.5</td><td>94.8 ± 0.5</td><td>25.8</td></tr>
+            <tr><td>MoTIF-ST (ViT-L/14)</td><td>72.6 ± 6.5</td><td>75.8 ± 0.6</td><td>94.8 ± 0.4</td><td>27.7</td></tr>
+            <tr><td>MoTIF (PE-L/14)</td><td>83.2 ± 6.2</td><td>81.8 ± 0.6</td><td>97.0 ± 0.3</td><td>37.3</td></tr>
+            <tr><td>MoTIF-ST (PE-L/14)</td><td>85.4 ± 6.3</td><td>80.8 ± 1.0</td><td>97.2 ± 0.2</td><td>39.6</td></tr>
+            <tr><td>MoTIF (PE-G/14)</td><td>87.5 ± 4.9</td><td>83.0 ± 0.6</td><td>98.0 ± 0.2</td><td>40.4</td></tr>
+            <tr><td>MoTIF-ST (PE-G/14)</td><td>87.3 ± 7.1</td><td>82.1 ± 1.0</td><td>98.4 ± 0.3</td><td>41.9</td></tr>
             
             <tr class="section-row"><td colspan="5">Existing Video Models</td></tr>
             <tr><td>TSM</td><td>59.1¹</td><td>73.5</td><td>95.9</td><td>61.7</td></tr>
@@ -400,10 +393,10 @@
           </tbody>
         </table>
         </div>
-        <p class="table-note">¹ Literature results. Ranking emphasis was removed here to avoid ambiguity from ties and mixed interpretable vs. non-interpretable comparisons.</p>
+        <p class="table-note">¹ Literature results. The non-VLM concept-set ablation is reported separately in Table 11 of the paper.</p>
 
         <h3>Comparison with DANCE</h3>
-        <p>We also compare MoTIF to DANCE and related explainable action-recognition baselines on UCF101, HAA-100, and HAA-500. Unlike DANCE, MoTIF explicitly models temporally localized concept activations and how they evolve over time.</p>
+        <p>Table 2 of the paper compares MoTIF to DANCE and related explainable action-recognition baselines on UCF101, HAA-100, and HAA-500. Unlike DANCE, MoTIF explicitly models temporally localized concept activations and how they evolve over time.</p>
 
         <div class="table-wrap">
         <table class="table">
@@ -428,7 +421,7 @@
         </div>
 
         <h3>Concept Interventions</h3>
-        <p>MoTIF’s bottleneck also supports direct interventions. The destructive columns report normalized prediction overlap after removing concepts or windows, while the corrective columns report top-1 repair rate after targeted manual edits on misclassified top-5 cases.</p>
+        <p>Table 4 of the paper reports direct interventions on MoTIF’s bottleneck. The destructive columns report normalized prediction overlap after removing concepts or windows, while the corrective columns report top-1 repair rate after targeted manual edits on misclassified top-5 cases.</p>
 
         <h4>Destructive Interventions</h4>
         <div class="table-wrap">
@@ -481,14 +474,14 @@
         </table>
         </div>
 
-        <p style="margin-top: 16px;">Pre-trained checkpoints for all MoTIF models are available at <a href="https://huggingface.co/P4ddyki/MoTIF/tree/main" target="_blank" rel="noopener">Hugging Face</a>.</p>
+        <p style="margin-top: 16px;">Released MoTIF checkpoints are available at <a href="https://huggingface.co/P4ddyki/MoTIF/tree/main" target="_blank" rel="noopener">Hugging Face</a>.</p>
       </section>
 
       <section id="bibtex" class="panel section">
         <h2>Citation</h2>
         <pre class="code">
-            @misc{knab2025conceptsmotiontemporalbottlenecks,
-                title={Concepts in Motion: Temporal Bottlenecks for Interpretable Video Classification}, 
+            @misc{knab2025conceptsinmotion,
+                title={Concepts in Motion: Temporal Concept Bottleneck Model for Interpretable Video Classification},
                 author={Patrick Knab and Sascha Marton and Philipp J. Schubert and Drago Guggiana and Christian Bartelt},
                 year={2025},
                 eprint={2509.20899},
@@ -539,14 +532,24 @@
         const buttons = document.querySelectorAll('.video-choice');
         const caption = document.getElementById('videoCaption');
 
-        source.src = videos[currentVideoIndex].src;
+        const mediaUrl = videos[currentVideoIndex].src + '?v=h264';
+        const status = document.getElementById('videoStatus');
+        status.hidden = true;
+        source.src = mediaUrl;
+        document.getElementById('videoDownload').href = mediaUrl;
         video.load();
         buttons.forEach((button, index) => {
           button.classList.toggle('active', index === currentVideoIndex);
         });
         caption.textContent = videos[currentVideoIndex].description;
 
-        video.play().catch(() => {});
+        video.play().catch((error) => {
+          if (error.name === 'AbortError') return; // Another clip was selected.
+          status.textContent = video.error
+            ? 'This video could not be played. Try downloading it using the link below.'
+            : 'Press the video play button to start the demo.';
+          status.hidden = false;
+        });
       }
 
       function changeVideo(direction) {
@@ -589,6 +592,11 @@
         if (e.key === 'ArrowRight') changeVideo(1);
       });
 
+      document.getElementById('demoVideo').addEventListener('error', () => {
+        const status = document.getElementById('videoStatus');
+        status.textContent = 'This video could not be played. Try downloading it using the link below.';
+        status.hidden = false;
+      });
       renderVideo();
     </script>
   </body>
