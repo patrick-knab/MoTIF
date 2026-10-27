@@ -7,7 +7,7 @@ MoTIF (Moving Temporal Interpretable Framework) extends concept bottleneck model
 
 **Accepted at NeurIPS 2026 (main track).** MoTIF also received the Best Paper Award at CompLearn @ ICML 2026 and was accepted as a Spotlight paper at XAI4CV @ CVPR 2026.
 
-![MoTIF overview](assets/FIG_1_neu.png)
+![MoTIF overview: VLM-based concept discovery and global, local, and temporal explanations for a shoot-bow video](assets/FIG_1_neu.png?v=20261027)
 
 ## Abstract
 

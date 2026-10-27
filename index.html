@@ -155,7 +155,7 @@
       .card:hover { border-color: #bdbdbd; }
       .code { background: #f5f5f5; color: #333; padding: 12px; border-radius: 4px; border: 1px solid var(--border); overflow: auto; font-family: "Courier New", monospace; font-size: 12px; }
       .fig-container { margin: 40px 0 0 0; }
-      img.fig { width: 100%; display: block; border-radius: 4px; border: 1px solid var(--border); }
+      img.fig { width: 100%; height: auto; display: block; border-radius: 4px; border: 1px solid var(--border); }
       .caption { font-size: 12px; color: var(--muted); margin-top: 6px; text-align: center; }
       .table-wrap {
         width: 100%;
@@ -259,8 +259,10 @@
 
       
       <div class="fig-container">
-      <img class="fig" src="assets/FIG_1_neu.png" alt="MoTIF Architecture" style="width: 100%; margin: 0;" />
-      <div class="caption">Figure 1: MoTIF architecture showing the modular design with concept extraction, temporal bottlenecks, and interpretable classification.</div>
+      <a href="assets/FIG_1_neu.png?v=20261027" target="_blank" rel="noopener">
+        <img class="fig" src="assets/FIG_1_neu.png?v=20261027" width="3200" height="768" alt="MoTIF shoot-bow example: VLM-based concept discovery, global and local concept relevance, and a temporal attention map for bow." />
+      </a>
+      <div class="caption">Figure 1: MoTIF combines VLM-based concept discovery with temporal concept reasoning to classify a shoot-bow video and explain its prediction through global concepts, local concepts, and temporal dependencies. Select the figure to view it full-size.</div>
       </div>
       
     </header>
@@ -327,9 +329,11 @@
         </div>
         <h3>Architecture</h3>
         <div class="fig-container">
-          <img class="fig" src="assets/VBM.png" alt="MoTIF pipeline overview" />
+          <a href="assets/VBM.png?v=20261027" target="_blank" rel="noopener">
+            <img class="fig" src="assets/VBM.png?v=20261027" width="3200" height="1058" loading="lazy" alt="MoTIF pipeline: video windows and text concepts are embedded by frozen encoders, cosine similarities enter per-channel temporal attention and per-concept affine transformation, and a classification head produces a prediction with three explanation views." />
+          </a>
           <div class="caption">
-            Videos are embedded with a vision–language backbone and mapped to concept activations via cosine similarity. Per‑channel temporal self‑attention models dynamics independently for each concept, followed by a non‑negative affine transformation and classification. MoTIF enables explanations across three views: global concepts, local concepts, and temporal dependencies. Sample frames from SSv2 with MoTIF (ViT‑L/14).
+            Video windows and text concepts are embedded by frozen image and text encoders and mapped to concept activations via cosine similarity. Per‑channel temporal self‑attention models dynamics independently for each concept, followed by per‑concept affine transformation and classification. The SSv2 example illustrates local concepts, global concepts, and temporal dependencies. Select the figure to view it full-size.
           </div>
         </div>
         <div class="stack" style="margin-top:12px">
