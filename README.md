@@ -24,19 +24,26 @@ Concept Bottleneck Models (CBMs) enable interpretable image classification by st
 
 ## Repository Contents
 
-- `train_MoTIF.py`: train the temporal MoTIF model
+- `train_MoTIF.py`: train the temporal MoTIF model (`--help` lists the command-line overrides)
 - `train_MoTIF-ST.py`: train the space-time MoTIF-ST variant
-- `embedding.py`: generate video embeddings used by the models
-- `finetune_pe_l14_ssv2.py`: experimental partial backbone fine-tuning on SSV2 manifests (not the paper's LoRA adaptation)
+- `embedding.py`: generate the window-level video embeddings used by the models
 - `save_videos.py`: prepare derived `Video_data/` and `Image_data/` folders from raw datasets
+- `finetune_pe_l14_ssv2.py`: backbone adaptation on SSv2 manifests (`--adapter lora` or `--adapter partial`)
+- `make_ssv2_manifests.py`: build the SSv2 class list and train/validation manifests from the official label files
 - `MoTIF.ipynb`, `MoTIF-ST.ipynb`: inspect predictions, concepts, and explanations
 - `Synthetic_temporal_pattern.ipynb`: synthetic temporal pattern experiments
 - `interventions.ipynb`, `corrective_interventions_manual.ipynb`, `app_corrective_interventions.py`: intervention and correction workflows
-- `slurm_cbm_extract_windows.sbatch`: example SLURM launcher for VLM-based concept extraction
-- `MoTIF_DCBM_Style/`: DCBM-style concept extraction and ablation utilities
+- `slurm_cbm_extract_windows.sbatch`: SLURM launcher for VLM-based concept extraction (vLLM server + extractor)
+- `utils/extract_cbm_concepts_from_image_data_windows.py`: the concept extraction CLI used by the launcher
+- `utils/manual_concepts.py`: hand-written fallback concept vocabularies (one list entry per concept)
+- `utils/lora.py`: dependency-free LoRA adapters for the vision tower (apply, save, load, merge)
+- `utils/paths.py`: repository-local data layout shared by all scripts
+- `MoTIF_DCBM_Style/`: DCBM-style concept extraction and ablation utilities (expects the layout documented in its own README)
 - `Videos/`: small example videos for qualitative inspection
 - `Datasets/`, `Embeddings/`, `Models/`: placeholder folders for external data and generated artifacts
 - `utils/`: model, embedding, explanation, intervention, and data-loading code
+
+All scripts resolve `Datasets/`, `Embeddings/`, `Models/` and concept runs relative to the repository root, so they can be started from any working directory.
 
 ## What Is Not Stored in Git
 
@@ -45,9 +52,10 @@ Large artifacts are intentionally not tracked in this repository:
 - trained checkpoints in `Models/`
 - generated embeddings in `Embeddings/`
 - raw datasets and derived `Video_data/` / `Image_data/` folders under `Datasets/`
+- VLM concept runs in `concept_extraction_out_batch/` and adaptation outputs in `pe_l14_ssv2_*/`
 - cache files, bytecode, and other local machine artifacts
 
-Pretrained checkpoints are available on [Hugging Face](https://huggingface.co/P4ddyki/MoTIF/tree/main). Embeddings can be regenerated locally with `embedding.py`.
+Pretrained checkpoints and PE-L/14 embeddings are available on [Hugging Face](https://huggingface.co/P4ddyki/MoTIF/tree/main). Embeddings can also be regenerated locally with `embedding.py`.
 
 ## Setup
 
@@ -89,86 +97,112 @@ uv pip install --python .venv-vllm/bin/python \
   -r requirements_vllm.txt
 ```
 
-See `slurm_cbm_extract_windows.sbatch` for an example server/extraction launcher. Paths supplied as `file://` media must exist on the server host and be permitted by vLLM's `--allowed-local-media-path` setting. The serving environment is separate from `uv.lock` and has not been validated on this Mac.
+See `slurm_cbm_extract_windows.sbatch` for the server/extraction launcher. Paths supplied as `file://` media must exist on the server host and be permitted by vLLM's `--allowed-local-media-path` setting. The serving environment is separate from `uv.lock` and has not been validated on this Mac.
 
 ## Data Layout
 
-Place the original dataset files under `Datasets/<DatasetName>/Data/`. The preprocessing step then creates the derived `Video_data/` and `Image_data/` folders used by the training and concept extraction code.
+Place the original dataset files under `Datasets/<DatasetName>/Data/` together with the official split files. The preprocessing step then creates the derived `Video_data/` and `Image_data/` folders used by the training and concept extraction code.
 
 Expected layout:
 
 ```text
 Datasets/
   HMDB/
-    Data/
-    testTrainMulti_7030_splits/
-    Video_data/
-    Image_data/
+    Data/<class>/<clip>.avi            # or Data/<class>/<class>/<clip>.avi, see below
+    testTrainMulti_7030_splits/        # from test_train_splits.rar (official HMDB-51 download)
+    Video_data/<class>/<clip>.mp4      # created by save_videos.py
+    Image_data/<class>/<clip>/*.jpg    # created by save_videos.py
   UCF101/
-    Data/
-    ucfTrainTestlist/
+    Data/<class>/<clip>.avi
+    ucfTrainTestlist/                  # official split lists (trainlist0k.txt / testlist0k.txt)
     Video_data/
     Image_data/
   Something2/
-    Data/
-    labels/
-    Video_data/
-    Image_data/
+    Data/<id>.webm
+    labels/                            # official labels.json, train.json, validation.json, test.json, test-answers.csv
+    Video_data/<id>.mp4
+    Image_data/<id>/*.jpg
   Breakfast/
-    Data/
+    Data/P03/cam01/*.avi ...
     Video_data/
     Image_data/
 ```
 
 Notes:
 
-- `save_videos.py` reads from `Data/` and writes the derived `Video_data/` and `Image_data/` folders.
-- The included HMDB split files under `Datasets/HMDB/testTrainMulti_7030_splits/` are lightweight metadata only.
+- `save_videos.py` reads from `Data/` and the split files, and writes the derived `Video_data/` and `Image_data/` folders.
+- The split files are **not** included in this repository; download them from the respective dataset websites and place them as shown above.
+- HMDB-51 ships one archive per class. Both `Data/<class>/<clip>.avi` and `Data/<class>/<class>/<clip>.avi` (each archive extracted into a folder of its own name) are accepted.
 - Dataset videos must be obtained from the original dataset providers and used under their respective licenses.
 
 ## Quickstart
 
+The commands below reproduce the default configuration of the training scripts: HMDB-51, split `s1`, PE-L/14 backbone, window size 8.
+
 ### 1. Install dependencies
 
 ```bash
-pip install -r requirements.txt
+uv sync --locked            # or: pip install -r requirements.txt
 ```
 
-### 2. Place raw datasets under `Datasets/<DatasetName>/Data/`
+### 2. Place raw datasets and split files under `Datasets/<DatasetName>/`
 
-Follow each dataset's official download instructions, then copy or extract the raw files into the matching `Data/` directory.
+Follow each dataset's official download instructions (see Data Layout).
 
 ### 3. Create derived video and frame folders
 
-Example:
-
 ```bash
-python save_videos.py --dataset HMDB
+python save_videos.py --dataset HMDB          # also: UCF101, Something2, Breakfast
 ```
-
-The script supports the dataset names used in the codebase and creates the `Video_data/` and `Image_data/` directories expected by training and concept extraction.
 
 ### 4. Generate embeddings
 
 ```bash
-python embedding.py
+python embedding.py --dataset hmdb51 --clip-model pe-l14 --window-size 8
 ```
 
-`embedding.py` currently contains an example configuration near the bottom of the file. Adjust the dataset, backbone, window size, and batching settings there before running large jobs.
+This writes `Embeddings/Videos/HMDB/True_8_clip_pe-l14.pkl`, which is where the training scripts look for it (`<random>_<window_size>_clip_<backbone>.pkl`). Use `--pe-video-batch-size` / `--pe-target-t` to trade speed for memory on the Perception Encoder path, and `--help` for the other backbones. Alternatively download `Embeddings/HMDB_pe-l14.pkl` from Hugging Face and pass it with `--embedding-path` in step 6.
 
-### 5. Train the temporal MoTIF model
+### 5. Provide concepts
+
+The training scripts use VLM-extracted (agentic) concepts by default and expect them in `concept_extraction_out_batch/HMDB/8B`, which is exactly the `--output_root` written by `slurm_cbm_extract_windows.sbatch`. To create that folder, start a vLLM server with `Qwen/Qwen3-VL-8B-Thinking` (the launcher does this) and run:
 
 ```bash
-python train_MoTIF.py
+python utils/extract_cbm_concepts_from_image_data_windows.py \
+  --image_data_dir Datasets/HMDB/Image_data \
+  --output_root concept_extraction_out_batch/HMDB/8B \
+  --dataset_name hmdb --instances_per_class 5 --shuffle_instances --seed 0 \
+  --llm_server_url http://127.0.0.1:8001/v1 --llm_model Qwen/Qwen3-VL-8B-Thinking \
+  --llm_api_key EMPTY --llm_max_tokens 3500 \
+  --window_size 30 --max_windows 8 --max_window_overlap 0.25 --max_concepts 6
 ```
 
-### 6. Train the space-time MoTIF-ST model
+The result is one `concepts.json` per video window under `<output_root>/<class>/<instance>/windows/<window>/`. The training scripts walk the folder recursively, drop instances that belong to the selected test split, and filter near-duplicate concepts (`--similarity-threshold`).
+
+No GPU server at hand? Pass `--manual-concepts` in the next step to train with the hand-written vocabularies in `utils/manual_concepts.py` instead.
+
+### 6. Train the temporal MoTIF model
 
 ```bash
-python train_MoTIF-ST.py
+python train_MoTIF.py --dataset hmdb51 --clip-model pe-l14 \
+  --agent-run-folder concept_extraction_out_batch/HMDB/8B
+# or, without a concept run:
+python train_MoTIF.py --dataset hmdb51 --clip-model pe-l14 --manual-concepts
+# or, with the embeddings downloaded from Hugging Face:
+python train_MoTIF.py --dataset hmdb51 --clip-model pe-l14 --manual-concepts \
+  --embedding-path Embeddings/HMDB_pe-l14.pkl
 ```
 
-### 7. Inspect checkpoints and explanations
+If the concept run is missing, the script stops immediately with the extraction command above. The remaining hyperparameters live in the `search_space` grid at the bottom of the script; `--help` lists the ones that can be overridden on the command line. Checkpoints are written to `Models/checkpoint_<backbone>_<Dataset>.pkl`.
+
+### 7. Train the space-time MoTIF-ST model
+
+```bash
+python train_MoTIF-ST.py --dataset hmdb51 --clip-model pe-l14 \
+  --agent-run-folder concept_extraction_out_batch/HMDB/8B
+```
+
+### 8. Inspect checkpoints and explanations
 
 Open the notebooks to visualize concepts, temporal attention, interventions, and prediction behavior:
 
@@ -179,13 +213,12 @@ Open the notebooks to visualize concepts, temporal attention, interventions, and
 
 ## Pretrained Checkpoints
 
-Pretrained checkpoints are available on [Hugging Face](https://huggingface.co/P4ddyki/MoTIF/tree/main). The repository currently includes released models for several dataset and backbone combinations, including PE-L/14 checkpoints for Breakfast, HMDB-51, and UCF-101.
+Pretrained checkpoints are available on [Hugging Face](https://huggingface.co/P4ddyki/MoTIF/tree/main). The repository currently includes released PE-L/14 models and embeddings for Breakfast, HMDB-51, and UCF-101:
 
-To use a pretrained checkpoint:
-
-1. Download the desired file from Hugging Face.
-2. Place it in `Models/`.
-3. Point the notebook or training/evaluation code to the matching checkpoint path.
+| File on Hugging Face | Use |
+| --- | --- |
+| `Models/checkpoint_pe-l14_<Dataset>.pkl` | place in `Models/`; loaded by the notebooks |
+| `Embeddings/<Dataset>_pe-l14.pkl` | pass to the training scripts with `--embedding-path` |
 
 ## Backbones and Datasets
 
@@ -208,44 +241,58 @@ To use a pretrained checkpoint:
 - Something-Something v2
 - Breakfast Actions
 
-Using additional datasets is possible, but typically requires adapting the dataset handling in `utils/core/data/`, `embedding.py`, and the training scripts.
+Using additional datasets is possible, but typically requires adapting the dataset handling in `utils/core/data/`, `utils/paths.py`, `embedding.py`, and the training scripts.
 
 ## Agentic Concept Extraction
 
-This repository also includes an optional pipeline for extracting concepts from video frames with a vision-language model.
-
-Typical workflow:
+The optional pipeline for extracting concepts from video frames with a vision-language model consists of:
 
 1. Install the main environment with `uv sync --locked`.
 2. Start a vLLM server with a vision-language model in the separate Linux/CUDA serving environment described above.
-3. Adapt `slurm_cbm_extract_windows.sbatch` to your environment.
-4. Run concept extraction using the utilities in `MoTIF_DCBM_Style/` or `utils/extract_cbm_concepts_from_image_data_windows.py`.
-5. Pass the generated concept directory to `train_MoTIF.py` or `train_MoTIF-ST.py` via the `agent_run_folder` setting when using agentic concepts.
+3. Run `utils/extract_cbm_concepts_from_image_data_windows.py` (exact command in Quickstart step 5), or adapt `slurm_cbm_extract_windows.sbatch`, which starts the server and runs the extractor on one node. Set `DATASET_NAME`, `IMAGE_DATA_DIR` and `OUTPUT_ROOT` in the launcher for other datasets; SSv2 additionally needs `--ssv2_labels_json Datasets/Something2/labels/train.json`.
+4. Pass the `--output_root` folder to `train_MoTIF.py` or `train_MoTIF-ST.py` via `--agent-run-folder`.
 
-The extraction pipeline supports ablation settings such as `json_only`, `json+action`, and `action_only`.
+The extraction pipeline supports ablation settings such as `json_only`, `json+action`, and `action_only` (the training scripts use `json+action`). `MoTIF_DCBM_Style/` contains the DCBM-style ablation toolkit; its bridge modules expect the directory layout documented in `MoTIF_DCBM_Style/README.md`.
 
-## Experimental SSV2 Backbone Fine-tuning
+## SSv2 Backbone Adaptation (LoRA)
 
-`finetune_pe_l14_ssv2.py` fine-tunes the last visual transformer blocks, output layers, and logit scale against frozen class-text embeddings. It is an experimental utility; it does not implement the LoRA adaptation reported in the paper and should not be used as a reproduction of those adapted results.
+For Something-Something v2 the PE-L/14 backbone is adapted before the embeddings are computed. The released procedure has three steps, all driven by the official SSv2 split files:
 
-Prepare `class_names.json` as an ordered JSON list of class names. Prepare separate training and validation JSONL manifests, each with one object per video:
-
-```json
-{"video_path": "videos/123.mp4", "class_idx": 0}
-```
-
-`class_idx` indexes the class-name list. Video paths can be absolute or relative to the manifest's directory. Use the official dataset splits, and construct any balanced subset before running this script; it does not select or balance the data itself.
+### 1. Build manifests
 
 ```bash
-uv run --locked python finetune_pe_l14_ssv2.py \
-  --manifest /path/to/train_manifest.jsonl \
-  --val-manifest /path/to/val_manifest.jsonl \
-  --class-names /path/to/class_names.json \
-  --out-dir pe_l14_ssv2_ft50 \
-  --backbone pe-l14 --epochs 5 --batch-size 4 --grad-accum 8
+python save_videos.py --dataset Something2
+python make_ssv2_manifests.py --out-dir pe_l14_ssv2_lora --train-per-class 50 --seed 0
 ```
 
-Pretrained weights are downloaded on first use. Training writes `latest.pt`, `best.pt`, and `metrics.jsonl`; use a new output directory for each run. The inputs and full GPU training are not included in the smoke validation of the environment.
+This writes `class_names.json` (templates in the order of `labels.json`, with `[something]` placeholders collapsed exactly as `utils/motif.py` names SSv2 classes) plus `train_manifest.jsonl` / `val_manifest.jsonl` with one `{"video_path": ..., "class_idx": ...}` per video. `--train-per-class` draws a balanced training subset; omit it to use the full training split.
+
+### 2. Train the LoRA adapter
+
+```bash
+uv run --locked python finetune_pe_l14_ssv2.py --adapter lora \
+  --manifest pe_l14_ssv2_lora/train_manifest.jsonl \
+  --val-manifest pe_l14_ssv2_lora/val_manifest.jsonl \
+  --class-names pe_l14_ssv2_lora/class_names.json \
+  --out-dir pe_l14_ssv2_lora --backbone pe-l14 \
+  --lora-rank 8 --lora-alpha 16 --lora-targets attn --lora-last-blocks 0 \
+  --epochs 5 --batch-size 4 --grad-accum 8 --lr 1e-4
+```
+
+The objective is cross-entropy over `logit_scale * <video, class text>` similarities with frozen class-text embeddings; only the LoRA matrices (`utils/lora.py`, applied to the attention q/k/v and output projections, optionally `--lora-targets attn,mlp`) and the logit scale are trained. `best.pt` / `latest.pt` contain the adapter weights and the LoRA configuration only.
+
+### 3. Embed SSv2 with the adapted backbone and train MoTIF
+
+```bash
+python embedding.py --dataset something2 --clip-model pe-l14 --window-size 8 \
+  --lora-adapter pe_l14_ssv2_lora/best.pt
+python train_MoTIF.py --dataset something2 --clip-model pe-l14 \
+  --agent-run-folder concept_extraction_out_batch/Something2/8B
+```
+
+`embedding.py` merges the adapter into the backbone before embedding, so the resulting pickle is a regular `VideoEmbedder`.
+
+`--adapter partial` (fine-tune the last `--train-last-blocks` blocks, the output layers and the logit scale; full state dict in the checkpoint) remains available as an alternative but is not the paper's procedure.
 
 ## Citation
 

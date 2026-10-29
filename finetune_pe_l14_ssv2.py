@@ -1,6 +1,20 @@
 from __future__ import annotations
 
-# Experimental partial vision-tower fine-tuning; not the paper's LoRA procedure.
+"""Backbone adaptation on Something-Something v2 manifests for the MoTIF concept pipeline.
+
+Two adaptation modes are available (``--adapter``):
+
+* ``lora``: LoRA (low-rank) adapters on the vision-tower attention (and optionally MLP)
+  weights, trained against frozen class-text embeddings; the checkpoint stores only the
+  adapter (``utils/lora.py``), which ``embedding.py --lora-adapter`` merges back into the
+  backbone before computing the SSv2 embeddings used by ``train_MoTIF.py``.
+* ``partial``: fine-tune the last ``--train-last-blocks`` visual transformer blocks, the
+  output layers and the logit scale (full state dict in the checkpoint).
+
+Both modes share the same data path: ``make_ssv2_manifests.py`` builds the manifests from
+the official SSv2 split files, and the contrastive objective is cross-entropy over
+``logit_scale * <video, class text>`` similarities.
+"""
 
 import argparse
 import json
@@ -27,6 +41,7 @@ for path in (ROOT, UTILS_DIR):
 
 import core.vision_encoder.pe as pe
 import core.vision_encoder.transforms as pe_transformer
+from utils.lora import LoRAConfig, apply_lora, lora_parameters, lora_state_dict
 
 
 def set_seed(seed: int) -> None:
@@ -268,12 +283,31 @@ def validate_rows(
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="Experimental partial vision-tower fine-tuning on SSV2 manifests (not LoRA)."
+        description="Adapt a CLIP-style vision tower on SSV2 manifests with LoRA or partial fine-tuning."
     )
     parser.add_argument(
         "--backbone",
         choices=("pe-l14", "pe-g14", "l14"),
         default="pe-l14",
+    )
+    parser.add_argument(
+        "--adapter",
+        choices=("partial", "lora"),
+        default="partial",
+        help="lora: train low-rank adapters (adapter-only checkpoint); partial: unfreeze the last blocks.",
+    )
+    parser.add_argument("--lora-rank", type=int, default=8, help="LoRA rank r (--adapter lora).")
+    parser.add_argument("--lora-alpha", type=float, default=16.0, help="LoRA scaling alpha; delta = alpha/r * B@A.")
+    parser.add_argument(
+        "--lora-targets",
+        default="attn",
+        help="Comma-separated weight groups to adapt: attn (q/k/v and output projections) and/or mlp.",
+    )
+    parser.add_argument(
+        "--lora-last-blocks",
+        type=int,
+        default=0,
+        help="Adapt only the last N visual transformer blocks (0 = all blocks).",
     )
     default_data_dir = ROOT / "pe_l14_ssv2_ft50"
     parser.add_argument("--manifest", type=Path, default=default_data_dir / "train_manifest.jsonl")
@@ -306,6 +340,12 @@ def parse_args() -> argparse.Namespace:
         parser.error("--num-workers and --train-last-blocks cannot be negative")
     if args.lr <= 0 or args.weight_decay < 0:
         parser.error("--lr must be positive and --weight-decay cannot be negative")
+    if args.adapter == "lora":
+        if args.lora_rank < 1 or args.lora_alpha <= 0 or args.lora_last_blocks < 0:
+            parser.error("--lora-rank must be positive, --lora-alpha positive and --lora-last-blocks non-negative")
+        args.lora_targets = tuple(t.strip() for t in args.lora_targets.split(",") if t.strip())
+        if not args.lora_targets:
+            parser.error("--lora-targets must name at least one of: attn, mlp")
     return args
 
 
@@ -346,14 +386,31 @@ def main() -> None:
     args.out_dir.mkdir(parents=True, exist_ok=True)
 
     model, transform, tokenizer = load_backbone(args.backbone, device)
-    if args.train_last_blocks > len(model.visual.transformer.resblocks):
-        raise ValueError("--train-last-blocks exceeds the number of visual transformer blocks")
-    set_trainable_layers(model, args.train_last_blocks, args.backbone)
+    # class-text embeddings are computed before any adaptation and stay frozen
     text_features = encode_class_text(
         model, tokenizer, class_names, device, args.backbone
     )
 
-    trainable = [p for p in model.parameters() if p.requires_grad]
+    lora_config = None
+    if args.adapter == "lora":
+        for param in model.parameters():
+            param.requires_grad = False
+        lora_config = LoRAConfig(
+            rank=args.lora_rank,
+            alpha=args.lora_alpha,
+            targets=args.lora_targets,
+            last_blocks=args.lora_last_blocks,
+        )
+        adapted = apply_lora(model.visual, lora_config)
+        model.logit_scale.requires_grad = True
+        trainable = lora_parameters(model) + [model.logit_scale]
+        print(f"[finetune] LoRA rank={lora_config.rank} alpha={lora_config.alpha} on {len(adapted)} weights "
+              f"({sum(p.numel() for p in trainable):,} trainable parameters)")
+    else:
+        if args.train_last_blocks > len(model.visual.transformer.resblocks):
+            raise ValueError("--train-last-blocks exceeds the number of visual transformer blocks")
+        set_trainable_layers(model, args.train_last_blocks, args.backbone)
+        trainable = [p for p in model.parameters() if p.requires_grad]
     optimizer = torch.optim.AdamW(trainable, lr=args.lr, weight_decay=args.weight_decay)
     scaler = torch.amp.GradScaler("cuda", enabled=device.type == "cuda")
 
@@ -436,11 +493,18 @@ def main() -> None:
 
         latest = args.out_dir / "latest.pt"
         payload = {
-            "model": model.state_dict(),
+            "backbone": args.backbone,
             "class_names": class_names,
             "args": serializable_args(args),
             "metrics": row,
         }
+        if lora_config is not None:
+            # adapter-only checkpoint, loadable with utils.lora.load_lora_adapter / embedding.py --lora-adapter
+            payload["lora_config"] = lora_config.to_dict()
+            payload["adapter"] = lora_state_dict(model)
+            payload["logit_scale"] = model.logit_scale.detach().cpu().clone()
+        else:
+            payload["model"] = model.state_dict()
         torch.save(payload, latest)
         if val_metrics["top1"] > best_top1:
             best_top1 = float(val_metrics["top1"])
