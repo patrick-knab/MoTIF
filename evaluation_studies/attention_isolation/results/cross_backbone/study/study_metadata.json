@@ -1,0 +1,44 @@
+{
+  "conditions": [
+    "channel_reserved",
+    "full_attention",
+    "scrambled_concepts",
+    "class_name_only"
+  ],
+  "expected_correction_responses": 600,
+  "expected_fidelity_responses": 1200,
+  "model_metadata": [
+    {
+      "available_common_correct": 118,
+      "available_common_incorrect": 53,
+      "backbone": "b32",
+      "channel_checkpoint": "attention_isolation/results/models/breakfast-b32_channel_reserved_seed42.pkl",
+      "channel_sha256": "a372867de68f2b5ddf8d4183ad2ee4b231771db2007710b4be747892fe62f324",
+      "common_prediction_examples": 171,
+      "dataset": "Breakfast",
+      "dataset_id": "Breakfast-b32",
+      "full_checkpoint": "attention_isolation/results/models/breakfast-b32_full_attention_seed42.pkl",
+      "full_sha256": "87147a6249de1b7906557106ef1906d2a2696189b453e940600c3798c7708963",
+      "input_concepts_exactly_matched": true,
+      "num_concepts": 223,
+      "seed": 42
+    },
+    {
+      "available_common_correct": 867,
+      "available_common_incorrect": 182,
+      "backbone": "res50",
+      "channel_checkpoint": "attention_isolation/results/models/hmdb-res50_channel_reserved_seed42.pkl",
+      "channel_sha256": "31217a62a75f1ac54370779d93826cf7ccf4dce06aaa7981688b4d17405a52a4",
+      "common_prediction_examples": 1049,
+      "dataset": "HMDB",
+      "dataset_id": "HMDB-res50",
+      "full_checkpoint": "attention_isolation/results/models/hmdb-res50_full_attention_seed42.pkl",
+      "full_sha256": "bfa5be6b89f7a504bd21e7a82df94e96923ef62f0a76a49a346f99308466feee",
+      "input_concepts_exactly_matched": true,
+      "num_concepts": 150,
+      "seed": 42
+    }
+  ],
+  "selection_rule": "Class-balanced common-prediction examples; both variants explain the same predicted class for the same standardized concept sequence.",
+  "total_trials": 200
+}

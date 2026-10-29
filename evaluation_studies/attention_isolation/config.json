@@ -1,0 +1,71 @@
+{
+  "study_seed": 7613,
+  "samples_per_dataset_correctness_stratum": 50,
+  "model_seeds": [42, 43, 44],
+  "judge_model_seed": 42,
+  "datasets": [
+    {
+      "dataset": "Breakfast",
+      "base_checkpoint": "Models/Breakfast_res50_testing_1.0_32_motif.pkl"
+    },
+    {
+      "dataset": "HMDB",
+      "base_checkpoint": "Models/HMDB_b32_testing_1.0_8_motif.pkl"
+    }
+  ],
+  "training": {
+    "num_epochs": 100,
+    "batch_size": 32,
+    "lse_tau": 1.0,
+    "l1_lambda": 0.001,
+    "lambda_sparse": 0.001,
+    "lr": 0.001,
+    "weight_decay": 0.01,
+    "transformer_layers": 1,
+    "dropout": 0.1,
+    "dimension": 1,
+    "enforce_nonneg": true,
+    "class_weights": true,
+    "label_smoothing": 0.1
+  },
+  "judges": [
+    {
+      "model": "Qwen/Qwen3.5-27B",
+      "served_name": "qwen3.5-27b"
+    },
+    {
+      "model": "Qwen/Qwen3.6-35B-A3B",
+      "served_name": "qwen3.6-35b-a3b"
+    }
+  ],
+  "judge_seeds": [17, 29, 43],
+  "explanations": {
+    "global_top_k": 8,
+    "temporal_top_k": 3,
+    "local_top_k": 4
+  },
+  "generation": {
+    "temperature": 0.2,
+    "top_p": 0.95,
+    "max_completion_tokens": 4096,
+    "request_timeout_seconds": 600,
+    "max_retries": 5,
+    "retry_backoff_seconds": 10,
+    "enable_thinking": false
+  },
+  "video": {
+    "num_frames": 64,
+    "allowed_local_media_path": "Datasets"
+  },
+  "leakage": {
+    "samples_per_dataset": 100,
+    "channels_per_sample": 16,
+    "epsilon": 0.1,
+    "bootstrap_replicates": 10000
+  },
+  "analysis": {
+    "bootstrap_replicates": 10000,
+    "isolation_noninferiority_margin": -0.25
+  }
+}
+

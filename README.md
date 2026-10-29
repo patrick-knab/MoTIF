@@ -39,6 +39,7 @@ Concept Bottleneck Models (CBMs) enable interpretable image classification by st
 - `utils/lora.py`: dependency-free LoRA adapters for the vision tower (apply, save, load, merge)
 - `utils/paths.py`: repository-local data layout shared by all scripts
 - `MoTIF_DCBM_Style/`: DCBM-style concept extraction and ablation utilities (expects the layout documented in its own README)
+- `evaluation_studies/`: raw data and evaluation scripts of the human study and the LLM-as-judge study reported in the paper
 - `Videos/`: small example videos for qualitative inspection
 - `Datasets/`, `Embeddings/`, `Models/`: placeholder folders for external data and generated artifacts
 - `utils/`: model, embedding, explanation, intervention, and data-loading code
@@ -293,6 +294,15 @@ python train_MoTIF.py --dataset something2 --clip-model pe-l14 \
 `embedding.py` merges the adapter into the backbone before embedding, so the resulting pickle is a regular `VideoEmbedder`.
 
 `--adapter partial` (fine-tune the last `--train-last-blocks` blocks, the output layers and the logit scale; full state dict in the checkpoint) remains available as an alternative but is not the paper's procedure.
+
+## Human Study and LLM-as-Judge Study
+
+The explanation evaluations of Section 3.2 of the paper are provided with raw data and code in [`evaluation_studies/`](./evaluation_studies/):
+
+- [`human_study/`](./evaluation_studies/human_study/): the blinded eight-rater preference study (24 trials, 72 ratings) with the rating interface, the verbatim rater instructions, all submitted responses and the analysis script (global+local preferred in 55.6% vs. 23.6%, 20.8% ties).
+- [`attention_isolation/`](./evaluation_studies/attention_isolation/): the blinded LLM-as-judge comparison of per-concept vs. full cross-concept attention (400 trials, Qwen3.5-27B and Qwen3.6-35B-A3B as judges) with stimuli, raw judge responses and the analysis script (diagonal attention preferred in 67.3% vs. 17.3%, 15.4% ties).
+
+Analysis outputs are not stored; see [`evaluation_studies/README.md`](./evaluation_studies/README.md) for the commands that regenerate them from the included responses.
 
 ## Citation
 
