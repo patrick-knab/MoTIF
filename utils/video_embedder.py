@@ -460,8 +460,9 @@ class VideoEmbedder(_PickleBackendsMixin):
         elif self.dataset_name == "ucf101":
             label = path.split("/")[-1]
             return label.split("_")[1]
-        elif self.dataset_name == "hmdb":
-            return path.split("/")[4]
+        elif self.dataset_name in ("hmdb", "hmdb51"):
+            # Video_data/<class>/<video>.mp4 -> class folder name (works for relative and absolute paths)
+            return os.path.basename(os.path.dirname(path))
         elif self.dataset_name == "something2":
             return path.split("/")[1]
         elif self.dataset_name == "jester":

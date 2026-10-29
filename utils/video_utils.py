@@ -1,5 +1,6 @@
 import os
 import glob
+import shutil
 import cv2
 
 from tqdm import tqdm
@@ -60,30 +61,34 @@ def create_images(video_path, output_dir):
 
 
 def create_videos(video_path, output_dir):
-    # Determine input and output paths for .avi and .webm
-    base_path = video_path
-    mp4_path = video_path.replace("/Data/", "/Video_data/")
-    if mp4_path.endswith(".avi") or mp4_path.endswith(".webm"):
-        mp4_path = mp4_path.rsplit(".", 1)[0] + ".mp4"
-    else:
-        mp4_path = mp4_path.replace(".mp4", ".mp4")  # fallback, should already be .mp4
+    """Write ``<output_dir>/<video stem>.mp4`` for one source video (.avi, .webm or .mp4).
+
+    The output location is taken from ``output_dir`` (not re-derived from the input path),
+    so nested or duplicated class folders in the raw data never leak into ``Video_data/``.
+    """
+    stem = os.path.splitext(os.path.basename(video_path))[0]
+    mp4_path = os.path.join(output_dir, stem + ".mp4")
+    if os.path.exists(mp4_path):
+        return mp4_path
 
     os.makedirs(output_dir, exist_ok=True)
 
-    if not os.path.exists(mp4_path):
-        # Try .avi first
-        avi_path = video_path.replace(".mp4", ".avi")
-        if os.path.exists(avi_path):
-            convert_avi_to_mp4(avi_path, mp4_path)
+    src = video_path
+    if not os.path.exists(src):
+        # allow callers to pass the .mp4 name of a video stored as .avi/.webm
+        for ext in (".avi", ".webm"):
+            candidate = os.path.splitext(video_path)[0] + ext
+            if os.path.exists(candidate):
+                src = candidate
+                break
         else:
-            # Try .webm
-            webm_path = video_path.replace(".mp4", ".webm")
-            if os.path.exists(webm_path):
-                convert_avi_to_mp4(webm_path, mp4_path)
-            else:
-                raise FileNotFoundError(
-                    f"Neither .avi nor .webm found for {video_path}"
-                )
+            raise FileNotFoundError(f"Neither .avi nor .webm found for {video_path}")
+
+    if src.lower().endswith(".mp4"):
+        shutil.copyfile(src, mp4_path)
+    else:
+        convert_avi_to_mp4(src, mp4_path)
+    return mp4_path
 
 
 # Code to convert one video to few images.
@@ -198,31 +203,52 @@ def create_videos_ucf(global_path, files):
         create_videos(video_path, output_dir)
 
 
+def resolve_hmdb_video(global_path, rel_path):
+    """Locate one HMDB-51 clip given ``rel_path = "<class>/<clip>.avi"``.
+
+    Two raw layouts are accepted under ``Data/``:
+
+    * ``Data/<class>/<clip>.avi`` (every per-class archive of ``hmdb51_org.rar``
+      extracted directly into ``Data/``), and
+    * ``Data/<class>/<class>/<clip>.avi`` (every per-class archive extracted into a
+      folder of the same name), which earlier versions of this script assumed.
+    """
+    rel_path = rel_path.lstrip("/")
+    class_name = rel_path.split("/")[0]
+    candidates = [
+        os.path.join(global_path, rel_path),
+        os.path.join(global_path, class_name, rel_path),
+    ]
+    for candidate in candidates:
+        if os.path.exists(candidate):
+            return candidate
+    raise FileNotFoundError(
+        f"HMDB clip {rel_path!r} not found; looked for " + " and ".join(candidates)
+    )
+
+
+def _hmdb_dataset_root(global_path):
+    # ".../Datasets/HMDB/Data/" -> ".../Datasets/HMDB"
+    return os.path.dirname(os.path.normpath(global_path))
+
+
 def create_images_hmdb(global_path, path_list):
-    for i in tqdm(path_list):
-        local_name = i.split("/")[1]
-        video_path = global_path + i
-        output_dir = (
-            video_path.replace("/Data/", "/Image_data/")
-            .replace(".avi", "")
-            .replace("//", "/")
-        )
-        video_path = global_path + local_name + i
+    """Extract frames to ``Image_data/<class>/<clip>/*.jpg`` for ``<class>/<clip>.avi`` entries."""
+    root = _hmdb_dataset_root(global_path)
+    for rel in tqdm(path_list, desc="HMDB avi to images"):
+        rel = rel.lstrip("/")
+        video_path = resolve_hmdb_video(global_path, rel)
+        output_dir = os.path.join(root, "Image_data", os.path.splitext(rel)[0])
         create_images(video_path, output_dir)
 
 
 def create_videos_hmdb(global_path, path_list):
-    for i in tqdm(path_list):
-        local_name = i.split("/")[1]
-        video_path = global_path + local_name + i
-        output_dir = (
-            video_path.replace("/Data/", "/Video_data/")
-            .replace(".avi", "")
-            .replace("//", "/")
-        )
-        # remove last folder in outputdir
-        output_dir = os.path.dirname(output_dir)
-        video_path = global_path + local_name + i
+    """Convert clips to ``Video_data/<class>/<clip>.mp4`` for ``<class>/<clip>.avi`` entries."""
+    root = _hmdb_dataset_root(global_path)
+    for rel in tqdm(path_list, desc="HMDB avi to mp4"):
+        rel = rel.lstrip("/")
+        video_path = resolve_hmdb_video(global_path, rel)
+        output_dir = os.path.join(root, "Video_data", os.path.dirname(rel))
         create_videos(video_path, output_dir)
 
 

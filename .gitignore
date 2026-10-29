@@ -72,3 +72,8 @@ Datasets/**/Image_data/
 Datasets/**/frames/
 Datasets/**/embeddings/
 !Datasets/info.txt
+
+# Outputs of the agentic concept extraction and backbone adaptation runs
+/concept_extraction_out_batch/
+/pe_l14_ssv2_*/
+/slurm_logs/

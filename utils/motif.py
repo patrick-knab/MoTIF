@@ -35,6 +35,11 @@ import glob
 import time
 import resource
 
+try:
+    from utils.paths import DATASETS_DIR
+except ImportError:  # executed with utils/ on sys.path
+    from paths import DATASETS_DIR
+
 def init_repro(seed: int = 42, deterministic: bool = True):
     """Call this at the very top of your notebook/script BEFORE creating any model/processor/device context."""
     os.environ["PYTHONHASHSEED"] = str(seed)
@@ -766,8 +771,8 @@ class MoTIF:
 
             elif dataset == "ucf101":
                 index = get_index(info)
-                ucf_test_list = (
-                    f"../Datasets/UCF101/ucfTrainTestlist/testlist0{index}.txt"
+                ucf_test_list = str(
+                    DATASETS_DIR / "UCF101" / "ucfTrainTestlist" / f"testlist0{index}.txt"
                 )
                 path_list = pd.read_csv(ucf_test_list, sep=" ", header=None)
                 for path in self.video_paths:
@@ -778,7 +783,7 @@ class MoTIF:
 
             elif dataset == "hmdb51":
                 index = get_index(info)
-                labels_path = "../Datasets/HMDB/testTrainMulti_7030_splits/"
+                labels_path = str(DATASETS_DIR / "HMDB" / "testTrainMulti_7030_splits")
                 path_text_dirs = glob.glob(os.path.join(labels_path, "*.txt"))
                 path_text_dirs_idx = [p for p in path_text_dirs if f"split{index}" in p]
                 path_text_dirs_idx.sort()
@@ -842,10 +847,11 @@ class MoTIF:
                 def replace_something(text: str) -> str:
                     return re.sub(r"\[(.*?)\]", r"\1", text)
 
-                val_json = "../Datasets/Something2/labels/validation.json"
-                train_json = "../Datasets/Something2/labels/train.json"
-                test_json = "../Datasets/Something2/labels/test.json"
-                test_csv = "../Datasets/Something2/labels/test-answers.csv"
+                ssv2_labels = DATASETS_DIR / "Something2" / "labels"
+                val_json = str(ssv2_labels / "validation.json")
+                train_json = str(ssv2_labels / "train.json")
+                test_json = str(ssv2_labels / "test.json")
+                test_csv = str(ssv2_labels / "test-answers.csv")
 
                 df_train = pd.read_json(train_json)
                 df_val = pd.read_json(val_json)

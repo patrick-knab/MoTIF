@@ -14,6 +14,11 @@ import torch.nn.functional as F
 import numpy as np
 from sklearn.metrics.pairwise import cosine_similarity
 
+try:
+    from utils.paths import DATASETS_DIR
+except ImportError:  # executed with utils/ on sys.path
+    from paths import DATASETS_DIR
+
 
 def get_test_split_instances(dataset, test_split):
     """
@@ -32,7 +37,7 @@ def get_test_split_instances(dataset, test_split):
         # HMDB uses split files
         import glob
         index = int(test_split.replace("s", "")) if test_split.startswith("s") else int(test_split)
-        labels_path = "./Datasets/HMDB/testTrainMulti_7030_splits/"
+        labels_path = str(DATASETS_DIR / "HMDB" / "testTrainMulti_7030_splits")
         path_text_dirs = glob.glob(os.path.join(labels_path, "*.txt"))
         path_text_dirs_idx = [p for p in path_text_dirs if f"split{index}" in p]
         path_text_dirs_idx.sort()
@@ -73,7 +78,7 @@ def get_test_split_instances(dataset, test_split):
         # UCF101 uses split files similar to HMDB
         import glob
         index = int(test_split.replace("s", "")) if test_split.startswith("s") else int(test_split)
-        labels_path = "./Datasets/UCF101/ucfTrainTestlist/"
+        labels_path = str(DATASETS_DIR / "UCF101" / "ucfTrainTestlist")
         path_text_dirs = glob.glob(os.path.join(labels_path, f"*testlist{index:02d}.txt"))
         
         for txt_path in path_text_dirs:
@@ -90,8 +95,8 @@ def get_test_split_instances(dataset, test_split):
     
     elif dataset == "something2":
         # SSV2 uses JSON files for splits
-        val_json = "./Datasets/Something2/labels/validation.json"
-        test_json = "./Datasets/Something2/labels/test.json"
+        val_json = str(DATASETS_DIR / "Something2" / "labels" / "validation.json")
+        test_json = str(DATASETS_DIR / "Something2" / "labels" / "test.json")
         
         import json as json_lib
         with open(test_json, "r") as f:
